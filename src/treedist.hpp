@@ -78,7 +78,7 @@ namespace treedist {
             ("treefile,t", program_options::value(&_tree_file), "name of file containing trees to compare")
             ("outfile,o", program_options::value(&_out_file), "name of file in which to store KF distances")
             ("reffile,r", program_options::value(&_ref_file), "name of file containing reference tree")
-            ("reftree", program_options::value(&_ref_tree), "index of tree to be used as the reference tree (default 1, the first tree in the file)")
+            ("reftree", program_options::value(&_ref_tree), "index of tree to be used as the reference tree (default 1, the first tree in the file after any skipped trees)")
             ("skip,s", program_options::value(&_skip), "number of trees at the beginning of treefile to skip (default is 0)")
         ;
         program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
@@ -113,10 +113,10 @@ namespace treedist {
         TreeSummary ts;
         if (_ref_file != "") {
             // Read reference tree from _ref_file first
-            ts.readTreefile(_ref_file,  /*skip*/0, /*ref_tree*/_ref_tree - 1, /*store_all*/false, _debug);
+            ts.readTreefile(_ref_file,  /*skip*/0, /*ref_tree*/_ref_tree, /*store_all*/false, _debug);
             
             // Now read in trees to compare to reference tree
-            ts.readTreefile(_tree_file, /*skip*/_skip, /*ref_tree*/-1,        /*store_all*/true, _debug);
+            ts.readTreefile(_tree_file, /*skip*/_skip, /*ref_tree*/0, /*store_all*/true, _debug);
         }
         else {
             // All trees (including reference tree) are in _tree_file
@@ -124,14 +124,16 @@ namespace treedist {
         }
         
         vector<double> kfvect;
-        ts.calcKFDistances(kfvect, _quiet, _debug);
+        vector<unsigned> rfvect;
+        ts.calcDistances(kfvect, rfvect, _quiet, _debug);
         
-        string outfname = (_out_file == "" ? "kf-dists.txt" : _out_file);
+        string outfname = (_out_file == "" ? "dists.txt" : _out_file);
         ofstream outf(outfname);
-        outf << "tree	KF\n";
-        unsigned i = 1;
-        for (auto kf : kfvect) {
-            outf << str(format("%d\t%.9f\n") % i % kf);
+        outf << "tree\tKF\tRF\n";
+        unsigned n = (unsigned)kfvect.size();
+        assert(n == rfvect.size());
+        for (unsigned i = 0; i < n; i++) {
+            outf << str(format("%d\t%.9f\t%d\n") % (i+1) % kfvect[i] % rfvect[i]);
             i++;
         }
         outf.close();

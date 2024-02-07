@@ -25,8 +25,8 @@ namespace treedist {
 		TreeSummary();
 		~TreeSummary();
 
-        void                        readTreefile(const string filename, unsigned skip, int ref_tree, bool store_all, bool debug);
-        void                        calcKFDistances(vector<double> & kfvect, bool quiet, bool debug);
+        void                        readTreefile(const string filename, unsigned skip, unsigned ref_tree, bool store_all, bool debug);
+        void                        calcDistances(vector<double> & kfvect, vector<unsigned> & rfvect, bool quiet, bool debug);
 		typename Tree::SharedPtr    getTree(unsigned index);
 		string                      getNewick(unsigned index);
 		bool                        isRooted(unsigned index);
@@ -96,10 +96,10 @@ namespace treedist {
 		_is_rooted.clear();
 	}
 
-	inline void TreeSummary::readTreefile(const string filename, unsigned skip, int ref_tree, bool store_all, bool debug) {
+	inline void TreeSummary::readTreefile(const string filename, unsigned skip, unsigned ref_tree, bool store_all, bool debug) {
         // If store_all is true, then
         //   - split sets from all trees (after skip) will be appended to _splitset_vect
-        //   - if ref_tree is > -1, splits from tree with index ref_tree (of the trees
+        //   - if ref_tree is > 0, splits from tree with index ref_tree - 1 (of the trees
         //     not skipped) will be saved to _ref_splitset and not to _splitset_vect
         // If store_all is false,
         //   - only the splits set from the reference tree will be saved in _ref_splitset
@@ -107,7 +107,7 @@ namespace treedist {
 
         // If not storing all trees, then ref_tree must be a valid
         // index of the tree to store
-        assert (ref_tree >= 0 || store_all);
+        assert (ref_tree > 0 || store_all);
         
 		TreeManip tm;
 		Split::treeid_t splitset;
@@ -182,6 +182,7 @@ namespace treedist {
         
         if (store_all) {
             for (unsigned t = skip; t < ntrees; ++t) {
+                unsigned tindex = t - skip;
                 const NxsFullTreeDescription& d = treesBlock->GetFullTreeDescription(t);
                 
                 // Assuming that the newick string has been processed to convert
@@ -196,7 +197,7 @@ namespace treedist {
                 // build the tree
                 tm.buildFromNewick(newick, is_rooted, false);
                 
-                if (ref_tree >= 0) {
+                if (ref_tree > 0 && tindex == ref_tree - 1) {
                     _ref_newick = newick;
                     _ref_is_rooted = is_rooted;
                     _ref_splitset.clear();
@@ -220,7 +221,7 @@ namespace treedist {
                 throw XTreeDist(format("Reference tree is beyond last non-skipped tree in file: skip = %d, ntrees = %d, reftree = %d") % skip % ntrees % ref_tree);
             }
             
-            const NxsFullTreeDescription& d = treesBlock->GetFullTreeDescription(skip + ref_tree);
+            const NxsFullTreeDescription& d = treesBlock->GetFullTreeDescription(skip + ref_tree - 1);
             
             // store the newick tree description
             bool is_rooted = d.IsRooted();
@@ -240,8 +241,9 @@ namespace treedist {
 		nexusReader.DeleteBlocksFromFactories();
 	}
     
-    inline void TreeSummary::calcKFDistances(vector<double> & kfvect, bool quiet, bool debug) {
+    inline void TreeSummary::calcDistances(vector<double> & kfvect, vector<unsigned> & rfvect, bool quiet, bool debug) {
         kfvect.clear();
+        rfvect.clear();
 
         // Map the splits in _ref_splitset
         map<Split, double> ref_split_map;
@@ -275,7 +277,7 @@ namespace treedist {
         unsigned i = 0;
         for (auto & ss : _splitset_vect) {
             if (!quiet && (i+1) % w == 0) {
-                om.outputConsole(format("\nTree %d of %d: ") % (i+1) % n);
+                om.outputConsole(format("Tree %d of %d: ") % (i+1) % n);
             }
             else if (debug) {
                 om.outputConsole(format("\nTree %d of %d\n") % (i+1) % n);
@@ -317,6 +319,7 @@ namespace treedist {
                 om.outputConsole(format("  %20s %20s %20s %20s %s\n") % "ref" % "other" % "diff^2" % "KF" % "split");
             }
 
+            unsigned RFdist = (unsigned)std::distance(inone.begin(), symmdiff_end);
             for (auto it = inone.begin(); it != symmdiff_end; ++it) {
                 Split & s = *it;
                 KFdist += pow(s.getWeight(), 2.0);
@@ -339,10 +342,11 @@ namespace treedist {
             }
 
             if (!quiet && (i+1) % w == 0) {
-                om.outputConsole(format("%.9f\n") % KFdist);
+                om.outputConsole(format("KF = %.9f, RF = %d\n") % KFdist % RFdist);
             }
             
             kfvect.push_back(KFdist);
+            rfvect.push_back(RFdist);
             i++;
         }
     }
