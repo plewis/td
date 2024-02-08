@@ -134,7 +134,6 @@ namespace treedist {
         assert(n == rfvect.size());
         for (unsigned i = 0; i < n; i++) {
             outf << str(format("%d\t%.9f\t%d\n") % (i+1) % kfvect[i] % rfvect[i]);
-            i++;
         }
         outf.close();
     }
