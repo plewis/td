@@ -1,0 +1,6 @@
+#NEXUS 
+
+Begin trees;  [Treefile saved Wed May 15 11:07:12 2024]
+	[!Tree with branch lengths estimated via qAge]
+	tree qAge = [&R] (A:1.68162918,((B:0.58068627,(C:0.34072314,E:0.34072314):0.23996313):1.10094291,D:1.68162918):0):0;
+end;

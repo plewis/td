@@ -769,8 +769,21 @@ namespace treedist {
 
 			if (inside_unquoted_name)
 				throw XTreeDist(boost::str(boost::format("Tree description ended before end of node name starting at position %d was found") % node_name_position));
-			if (inside_edge_length)
-				throw XTreeDist(boost::str(boost::format("Tree description ended before end of edge length starting at position %d was found") % edge_length_position));
+			if (inside_edge_length) {
+                if (nd->_parent && !nd->_parent->_parent) {
+                    // At the subroot node, whose parent is the root node. This edge
+                    // length will be applied to the subroot node.
+                    extractEdgeLen(nd, edge_length_str);
+                }
+                else {
+                    // We should not be at the root node itself
+                    assert(nd->_parent);
+                    
+                    // We're not at the base of the tree, so the
+                    // tree description should not be ending here
+                    throw XTreeDist(boost::str(boost::format("Tree description ended before end of edge length starting at position %d was found") % edge_length_position));
+                }
+            }
 			if (inside_quoted_name)
 				throw XTreeDist(boost::str(boost::format("Expecting single quote to mark the end of node name at position %d in tree description") % node_name_position));
 
