@@ -29,16 +29,19 @@ namespace treedist {
         void                        calcDistances(vector<double> & kfvect, vector<unsigned> & rfvect, bool quiet, bool debug);
 		typename Tree::SharedPtr    getTree(unsigned index);
 		string                      getNewick(unsigned index);
+		string                      getTreeName(unsigned index);
 		bool                        isRooted(unsigned index);
 		void                        clear();
 
 	private:
 
 		vector<string>          _newicks;
+		vector<string>          _tree_names;
         vector<bool>            _is_rooted;
         vector<Split::treeid_t> _splitset_vect;
         
         string                  _ref_newick;
+        string                  _ref_treename;
         bool                    _ref_is_rooted;
         Split::treeid_t         _ref_splitset;
         
@@ -84,6 +87,13 @@ namespace treedist {
 		return _newicks[index];
 	}
 
+	inline string TreeSummary::getTreeName(unsigned index) {
+		if (index >= _tree_names.size())
+			throw XTreeDist("getTreeName called with index >= number of stored trees");
+
+		return _tree_names[index];
+	}
+
 	inline bool TreeSummary::isRooted(unsigned index) {
 		if (index >= _is_rooted.size())
 			throw XTreeDist("isRooted called with index >= number of stored trees");
@@ -93,6 +103,7 @@ namespace treedist {
 
 	inline void TreeSummary::clear() {
 		_newicks.clear();
+		_tree_names.clear();
 		_is_rooted.clear();
 	}
 
@@ -185,6 +196,9 @@ namespace treedist {
                 unsigned tindex = t - skip;
                 const NxsFullTreeDescription& d = treesBlock->GetFullTreeDescription(t);
                 
+                // store the tree name
+                string tree_name = d.GetName();
+                
                 // Assuming that the newick string has been processed to convert
                 // taxon names to 1-offset numbers in the order specified in the
                 // corresponding taxa block
@@ -199,12 +213,14 @@ namespace treedist {
                 
                 if (ref_tree > 0 && tindex == ref_tree - 1) {
                     _ref_newick = newick;
+                    _ref_treename = tree_name;
                     _ref_is_rooted = is_rooted;
                     _ref_splitset.clear();
                     tm.storeSplits(_ref_splitset, _taxon_map);
                 }
                 else {
                     _newicks.push_back(newick);
+                    _tree_names.push_back(tree_name);
                     _is_rooted.push_back(is_rooted);
 
                     // store set of splits
@@ -224,9 +240,11 @@ namespace treedist {
             const NxsFullTreeDescription& d = treesBlock->GetFullTreeDescription(skip + ref_tree - 1);
             
             // store the newick tree description
+            string tree_name = d.GetName();
             bool is_rooted = d.IsRooted();
             string newick = d.GetNewick();
             _ref_newick = newick;
+            _ref_treename = tree_name;
             _ref_is_rooted = is_rooted;
 
             // build the tree
@@ -277,10 +295,10 @@ namespace treedist {
         unsigned i = 0;
         for (auto & ss : _splitset_vect) {
             if (!quiet && (i+1) % w == 0) {
-                om.outputConsole(format("Tree %d of %d: ") % (i+1) % n);
+                om.outputConsole(format("Tree %d of %d (\"%s\"): ") % (i+1) % n % _tree_names[i]);
             }
             else if (debug) {
-                om.outputConsole(format("\nTree %d of %d\n") % (i+1) % n);
+                om.outputConsole(format("\nTree %d of %d (\"%s\")\n") % (i+1) % n % _tree_names[i]);
             }
             
             // Map the splits in ss

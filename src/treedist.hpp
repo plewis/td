@@ -129,11 +129,11 @@ namespace treedist {
         
         string outfname = (_out_file == "" ? "dists.txt" : _out_file);
         ofstream outf(outfname);
-        outf << "tree\tKF\tRF\n";
+        outf << "tree\tname\tKF\tRF\n";
         unsigned n = (unsigned)kfvect.size();
         assert(n == rfvect.size());
         for (unsigned i = 0; i < n; i++) {
-            outf << str(format("%d\t%.9f\t%d\n") % (i+1) % kfvect[i] % rfvect[i]);
+            outf << str(format("%d\t%s\t%.9f\t%d\n") % (i+1) % ts.getTreeName(i) % kfvect[i] % rfvect[i]);
         }
         outf.close();
     }
