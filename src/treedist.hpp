@@ -41,6 +41,7 @@ namespace treedist {
         
             bool                        _quiet;
             bool                        _debug;
+            bool                        _deroot;
             string                      _tree_file;
             string                      _out_file;
             string                      _ref_file;
@@ -61,6 +62,7 @@ namespace treedist {
     }
 
     inline void TreeDist::clear() {
+        _deroot   = false;
         _quiet    = false;
         _debug    = false;
         _ref_tree = 1;
@@ -76,10 +78,11 @@ namespace treedist {
             ("quiet,q", program_options::bool_switch(&_quiet), "minimize output")
             ("debug,d", program_options::bool_switch(&_debug), "copious output for debugging purposes")
             ("treefile,t", program_options::value(&_tree_file), "name of file containing trees to compare")
-            ("outfile,o", program_options::value(&_out_file), "name of file in which to store KF distances")
+            ("outfile,o", program_options::value(&_out_file), "name of file in which to store distances")
             ("reffile,r", program_options::value(&_ref_file), "name of file containing reference tree")
             ("reftree", program_options::value(&_ref_tree), "index of tree to be used as the reference tree (default 1, the first tree in the file after any skipped trees)")
             ("skip,s", program_options::value(&_skip), "number of trees at the beginning of treefile to skip (default is 0)")
+            ("deroot", program_options::value(&_deroot), "calculate distances on derooted trees")
         ;
         program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
         try {
@@ -113,14 +116,14 @@ namespace treedist {
         TreeSummary ts;
         if (_ref_file != "") {
             // Read reference tree from _ref_file first
-            ts.readTreefile(_ref_file,  /*skip*/0, /*ref_tree*/_ref_tree, /*store_all*/false, _debug);
+            ts.readTreefile(_ref_file,  /*skip*/0, /*ref_tree*/_ref_tree, /*store_all*/false, _deroot, _debug);
             
             // Now read in trees to compare to reference tree
-            ts.readTreefile(_tree_file, /*skip*/_skip, /*ref_tree*/0, /*store_all*/true, _debug);
+            ts.readTreefile(_tree_file, /*skip*/_skip, /*ref_tree*/0, /*store_all*/true, _deroot, _debug);
         }
         else {
             // All trees (including reference tree) are in _tree_file
-            ts.readTreefile(_tree_file, /*skip*/_skip, /*ref_tree*/_ref_tree,        /*store_all*/true, _debug);
+            ts.readTreefile(_tree_file, /*skip*/_skip, /*ref_tree*/_ref_tree,        /*store_all*/true, _deroot, _debug);
         }
         
         vector<double> kfvect;

@@ -25,7 +25,7 @@ namespace treedist {
 		TreeSummary();
 		~TreeSummary();
 
-        void                        readTreefile(const string filename, unsigned skip, unsigned ref_tree, bool store_all, bool debug);
+        void                        readTreefile(const string filename, unsigned skip, unsigned ref_tree, bool store_all, bool deroot, bool debug);
         void                        calcDistances(vector<double> & kfvect, vector<unsigned> & rfvect, bool quiet, bool debug);
 		typename Tree::SharedPtr    getTree(unsigned index);
 		string                      getNewick(unsigned index);
@@ -107,7 +107,7 @@ namespace treedist {
 		_is_rooted.clear();
 	}
 
-	inline void TreeSummary::readTreefile(const string filename, unsigned skip, unsigned ref_tree, bool store_all, bool debug) {
+	inline void TreeSummary::readTreefile(const string filename, unsigned skip, unsigned ref_tree, bool store_all, bool deroot, bool debug) {
         // If store_all is true, then
         //   - split sets from all trees (after skip) will be appended to _splitset_vect
         //   - if ref_tree is > 0, splits from tree with index ref_tree - 1 (of the trees
@@ -206,10 +206,18 @@ namespace treedist {
 
                 // store the newick tree description
                 bool is_rooted = d.IsRooted();
+                //bool all_edge_lengths = d.AllEdgesHaveLengths();
+                //bool some_edge_lengths = d.SomeEdgesHaveLengths();
+                //bool int_edge_lengths = d.EdgeLengthsAreAllIntegers();
+                
                 string newick = d.GetNewick();
 
                 // build the tree
                 tm.buildFromNewick(newick, is_rooted, false);
+                
+                if (is_rooted && deroot) {
+                    tm.deroot();
+                }
                 
                 if (ref_tree > 0 && tindex == ref_tree - 1) {
                     _ref_newick = newick;
@@ -217,6 +225,12 @@ namespace treedist {
                     _ref_is_rooted = is_rooted;
                     _ref_splitset.clear();
                     tm.storeSplits(_ref_splitset, _taxon_map);
+                    
+                    // //temporary!
+                    // cerr << "\nReference tree " << tindex << " split set:" << endl;
+                    // for (auto s : _ref_splitset) {
+                    //     cerr << "  " << s.createPatternRepresentation() << endl;
+                    // }
                 }
                 else {
                     _newicks.push_back(newick);
@@ -227,6 +241,12 @@ namespace treedist {
                     splitset.clear();
                     tm.storeSplits(splitset, _taxon_map);
                     
+                    // //temporary!
+                    // cerr << "\nTree " << tindex << " split set:" << endl;
+                    // for (auto s : splitset) {
+                    //     cerr << "  " << s.createPatternRepresentation() << endl;
+                    // }
+
                     _splitset_vect.push_back(splitset);
                 }
             } // trees loop

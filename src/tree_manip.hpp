@@ -46,6 +46,8 @@ namespace treedist {
 		void                        selectPartialsHereToRoot(Node* a);
 		void                        flipPartialsAndTMatrices();
   
+		void                        deroot();
+
 		void                        clear();
 
 	private:
@@ -460,6 +462,98 @@ namespace treedist {
 		return nd_can_have_sibling;
 	}
 
+	inline void TreeManip::deroot() {
+        // //temporary!
+        // cerr << "\nBefore derooting" << endl;
+        // cerr << makeNewick(5) << endl;
+        
+        // This function converts tree from rooted to unrooted
+        assert(_tree->_is_rooted);
+        _tree->_is_rooted = false;
+
+        // Detach root and subroot nodes
+        Node * subroot = _tree->_root->_left_child;
+        Node * left  = subroot->_left_child;
+        Node * right = left->_right_sib;
+        assert(!right->_right_sib);
+        
+        // Detach left and right from subroot
+        left->_parent = nullptr;
+        right->_parent = nullptr;
+        left->_right_sib = nullptr;
+
+        // We will no longer need subroot node
+        subroot->_left_child = nullptr;
+        subroot->_parent = nullptr;
+        subroot->_edge_length = 0.0;
+        
+        // We will no longer need _root node
+        _tree->_root->_left_child = nullptr;
+        _tree->_root->_parent = nullptr;
+        _tree->_root->_edge_length = 0.0;
+        
+        // Assign left's edge length to right and make right a third child of left
+        _tree->_root = left;
+        right->_parent = left;
+        right->_edge_length += left->_edge_length;
+        left->_edge_length = 0.0;
+        if (left->_left_child) {
+            Node * child = left->_left_child;
+            while (child->_right_sib) {
+                child = child->_right_sib;
+            }
+            child->_right_sib = right;
+        }
+        else {
+            // left (== _root) is a leaf; make it the root node and we're done
+            left->_left_child = right;
+            left->_right_sib = nullptr;
+            refreshPreorder();
+            refreshLevelorder();
+
+            // //temporary!
+            // cerr << "\nAfter derooting" << endl;
+            // cerr << makeNewick(5) << endl;
+            
+            return;
+        }
+        
+        left = _tree->_root->_left_child;
+        while (left->_left_child) {
+            // Detach left from tree
+            _tree->_root->_left_child = left->_right_sib;
+            left->_parent = nullptr;
+            left->_right_sib = nullptr;
+            _tree->_root->_edge_length = left->_edge_length;
+            
+            // Make _root rightmost child of left
+            Node * child = left->_left_child;
+            while (child->_right_sib) {
+                child = child->_right_sib;
+            }
+            child->_right_sib = _tree->_root;
+            _tree->_root->_parent = left;
+            _tree->_root = left;
+            left = _tree->_root->_left_child;
+        }
+        
+        // left is a leaf; make it the root and we're done
+        _tree->_root->_edge_length = left->_edge_length;
+        left->_edge_length = 0.0;
+        _tree->_root->_left_child = left->_right_sib;
+        left->_left_child = _tree->_root;
+        left->_right_sib = nullptr;
+        left->_parent = nullptr;
+        _tree->_root->_parent = left;
+        _tree->_root = left;
+		refreshPreorder();
+		refreshLevelorder();
+
+        // //temporary!
+        // cerr << "\nAfter derooting" << endl;
+        // cerr << makeNewick(5) << endl;
+    }
+        
 	inline void TreeManip::rerootAtNodeNumber(int node_number) {
 		// Locate node having _number equal to node_number
 		Node* nd = 0;
@@ -711,6 +805,7 @@ namespace treedist {
 					nd->_right_sib = &_tree->_nodes[curr_node_index];
 					nd->_right_sib->_parent = nd->_parent;
 					nd = nd->_right_sib;
+                    nd->_edge_length = 1.0; // default edge length
 					previous = Prev_Tok_Comma;
 					break;
 
@@ -727,6 +822,7 @@ namespace treedist {
 					nd->_left_child = &_tree->_nodes[curr_node_index];
 					nd->_left_child->_parent = nd;
 					nd = nd->_left_child;
+                    nd->_edge_length = 1.0; // default edge length
 					previous = Prev_Tok_LParen;
 					break;
 
@@ -816,10 +912,20 @@ namespace treedist {
                 
                 // set weight of split to edge length
                 nd->_split.setWeight(nd->_edge_length);
+                
+                // //temporary!
+                // cerr << "internal: " << nd->_split.createPatternRepresentation();
 
 				// if not the (sub)root node, add this internal node's split to splitset
-                if (nd->_parent && nd->_parent->_parent)
+                if (nd->_parent && nd->_parent->_parent) {
+                    // //temporary!
+                    // cerr << " (inserted)" << endl;
                     splitset.insert(nd->_split);
+                }
+                // else {
+                //     //temporary!
+                //     cerr << endl;
+                // }
 			}
 			else {
                 // leaf node
@@ -842,6 +948,9 @@ namespace treedist {
                 
                 // set weight of split to edge length
                 nd->_split.setWeight(nd->_edge_length);
+
+                // //temporary!
+                // cerr << "leaf: " << nd->_split.createPatternRepresentation() << " (inserted)" << endl;
 
 				// add this leaf node's split to splitset
 				splitset.insert(nd->_split);
