@@ -159,8 +159,11 @@ namespace treedist {
             for (unsigned t = 0; t < taxaBlock->GetNTax(); t++) {
                 string nm = taxaBlock->GetTaxonLabel(t);
                 _taxon_names.push_back(nm);
-                if (debug)
+                if (debug) {
                     om.outputConsole(format("  taxon %d is \"%s\"\n") % t % nm);
+                    om.outputConsole(format("    _master_taxon_map[%s] = %d\n") % nm % t);
+                    om.outputConsole(format("    _taxon_map[%d] = %d\n") % t % t);
+                }
                 _master_taxon_map[nm] = t;
                 _taxon_map[t] = t;
             }
@@ -174,8 +177,10 @@ namespace treedist {
                 om.outputConsole("\nProcessing subsequent taxa block:\n");
             for (unsigned t = 0; t < taxaBlock->GetNTax(); t++) {
                 string nm = taxaBlock->GetTaxonLabel(t);
-                if (debug)
+                if (debug) {
                     om.outputConsole(format("  taxon %d is \"%s\" --> %d\n") % t % nm % _master_taxon_map.at(nm));
+                    om.outputConsole(format("     _taxon_map[%d] = %d\n") % t % _master_taxon_map.at(nm));
+                }
                 _taxon_map[t] = _master_taxon_map.at(nm);
             }
         }
@@ -217,6 +222,25 @@ namespace treedist {
                 
                 if (is_rooted && deroot) {
                     tm.deroot();
+                    
+                    // Find node number corresponding to taxon 0
+                    int node_number = -1;
+                    for (auto & p : _taxon_map) {
+                        node_number = p.first;
+                        unsigned taxon_index = p.second;
+                        if (taxon_index == 0) {
+                            break;
+                        }
+                    }
+                    assert(node_number > -1);
+                    
+                    tm.rerootAtNodeNumber((unsigned)node_number);
+
+#if defined(DEBUGGING)
+                    cerr << "\nAfter rerooting at node number " << node_number << endl;
+                    cerr << tm.makeNewick(5) << endl;
+#endif
+                    
                 }
                 
                 if (ref_tree > 0 && tindex == ref_tree - 1) {
@@ -226,11 +250,12 @@ namespace treedist {
                     _ref_splitset.clear();
                     tm.storeSplits(_ref_splitset, _taxon_map);
                     
-                    // //temporary!
-                    // cerr << "\nReference tree " << tindex << " split set:" << endl;
-                    // for (auto s : _ref_splitset) {
-                    //     cerr << "  " << s.createPatternRepresentation() << endl;
-                    // }
+#if defined(DEBUGGING)
+                    cerr << "\nReference tree " << tindex << " split set:" << endl;
+                    for (auto s : _ref_splitset) {
+                        cerr << "  " << s.createPatternRepresentation() << endl;
+                    }
+#endif
                 }
                 else {
                     _newicks.push_back(newick);
@@ -241,11 +266,12 @@ namespace treedist {
                     splitset.clear();
                     tm.storeSplits(splitset, _taxon_map);
                     
-                    // //temporary!
-                    // cerr << "\nTree " << tindex << " split set:" << endl;
-                    // for (auto s : splitset) {
-                    //     cerr << "  " << s.createPatternRepresentation() << endl;
-                    // }
+#if defined(DEBUGGING)
+                    cerr << "\nTree " << tindex << " split set:" << endl;
+                    for (auto s : splitset) {
+                        cerr << "  " << s.createPatternRepresentation() << endl;
+                    }
+#endif
 
                     _splitset_vect.push_back(splitset);
                 }
@@ -270,9 +296,38 @@ namespace treedist {
             // build the tree
             tm.buildFromNewick(newick, is_rooted, false);
 
+            if (is_rooted && deroot) {
+                tm.deroot();
+                    
+                // Find node number corresponding to taxon 0
+                int node_number = -1;
+                for (auto & p : _taxon_map) {
+                    node_number = p.first;
+                    unsigned taxon_index = p.second;
+                    if (taxon_index == 0) {
+                        break;
+                    }
+                }
+                assert(node_number > -1);
+                    
+                tm.rerootAtNodeNumber((unsigned)node_number);
+                
+#if defined(DEBUGGING)
+                cerr << "\nAfter rerooting at node number " << node_number << endl;
+                cerr << tm.makeNewick(5) << endl;
+#endif
+            }
+
             // store set of splits
             _ref_splitset.clear();
             tm.storeSplits(_ref_splitset, _taxon_map);
+
+#if defined(DEBUGGING)
+            cerr << "\nTree " << ref_tree << " (reference) split set:" << endl;
+            for (auto s : _ref_splitset) {
+                cerr << "  " << s.createPatternRepresentation() << endl;
+            }
+#endif
         }
 
 		// No longer any need to store raw data from nexus file
@@ -310,7 +365,8 @@ namespace treedist {
         //  8  8.8       *                8   9
         //  9  9.9       *                9  10     *
         // 10 11.0
-        unsigned w = (n > _nprogress) ? (unsigned)(n/_nprogress) : 1;
+        //unsigned w = (n > _nprogress) ? (unsigned)(n/_nprogress) : 1;
+        unsigned w = 1;
 
         unsigned i = 0;
         for (auto & ss : _splitset_vect) {

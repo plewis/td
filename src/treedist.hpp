@@ -107,9 +107,9 @@ namespace treedist {
             exit(1);
         }
         
-        if (_debug) {
-            _quiet = true;
-        }
+        //if (_debug) {
+        //    _quiet = true;
+        //}
     }
         
     inline void TreeDist::run() {

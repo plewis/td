@@ -38,6 +38,8 @@ namespace treedist {
         double                                              getWeight() const;
         void                                                setWeight(double w);
 
+        void                                                standardize();
+
 		bool                                                isEquivalent(const Split& other) const;
 		bool                                                isCompatible(const Split& other) const;
 		bool                                                conflictsWith(const Split& other) const;
@@ -165,6 +167,31 @@ namespace treedist {
 		return s;
 	}
 
+	inline void Split::standardize() {
+        // If first bit is set, reverse all bits
+        // _bits[1] _bits[0]
+        // 00001111 11111111 _mask
+        // 00001001 00011010 not standardized
+        // 00000110 11100101 standardized
+        
+		unsigned nunits = (unsigned)_bits.size();
+		assert(nunits > 0);
+        
+        // See if first bit is set
+        split_unit_t unity = 1;
+        bool first_bit_set = _bits[0] & unity;
+        
+        if (first_bit_set) {
+            for (unsigned i = 0; i < nunits; ++i) {
+                // Reverse all bits
+                _bits[i] = ~_bits[i];
+                
+                // Apply mask to zero bits not currently used
+                _bits[i] &= _mask;
+            }
+        }
+    }
+    
 	inline bool Split::isEquivalent(const Split& other) const {
 		unsigned nunits = (unsigned)_bits.size();
 		assert(nunits > 0);

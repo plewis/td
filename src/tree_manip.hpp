@@ -463,9 +463,10 @@ namespace treedist {
 	}
 
 	inline void TreeManip::deroot() {
-        // //temporary!
-        // cerr << "\nBefore derooting" << endl;
-        // cerr << makeNewick(5) << endl;
+#if defined(DEBUGGING)
+        cerr << "\nBefore derooting" << endl;
+        cerr << makeNewick(5) << endl;
+#endif
         
         // This function converts tree from rooted to unrooted
         assert(_tree->_is_rooted);
@@ -511,9 +512,10 @@ namespace treedist {
             refreshPreorder();
             refreshLevelorder();
 
-            // //temporary!
-            // cerr << "\nAfter derooting" << endl;
-            // cerr << makeNewick(5) << endl;
+#if defined(DEBUGGING)
+            cerr << "\nAfter derooting" << endl;
+            cerr << makeNewick(5) << endl;
+#endif
             
             return;
         }
@@ -549,10 +551,11 @@ namespace treedist {
 		refreshPreorder();
 		refreshLevelorder();
 
-        // //temporary!
-        // cerr << "\nAfter derooting" << endl;
-        // cerr << makeNewick(5) << endl;
-    }
+#if defined(DEBUGGING)
+        cerr << "\nAfter derooting" << endl;
+        cerr << makeNewick(5) << endl;
+#endif
+}
         
 	inline void TreeManip::rerootAtNodeNumber(int node_number) {
 		// Locate node having _number equal to node_number
@@ -910,22 +913,33 @@ namespace treedist {
 			if (nd->_left_child) {
                 // internal node
                 
+#if defined(DEBUGGING)
+                cerr << "internal " << nd->_number << " (before standardization): " << nd->_split.createPatternRepresentation() << endl;
+#endif
+
+                // Reverse bits if first bit is set
+                nd->_split.standardize();
+                
                 // set weight of split to edge length
                 nd->_split.setWeight(nd->_edge_length);
                 
-                // //temporary!
-                // cerr << "internal: " << nd->_split.createPatternRepresentation();
+#if defined(DEBUGGING)
+                cerr << "internal " << nd->_number << "(after standardization): " << nd->_split.createPatternRepresentation();
 
 				// if not the (sub)root node, add this internal node's split to splitset
                 if (nd->_parent && nd->_parent->_parent) {
-                    // //temporary!
-                    // cerr << " (inserted)" << endl;
+                    cerr << " (inserted)" << endl;
                     splitset.insert(nd->_split);
                 }
-                // else {
-                //     //temporary!
-                //     cerr << endl;
-                // }
+                else {
+                    cerr << endl;
+                }
+#else
+				// if not the (sub)root node, add this internal node's split to splitset
+                if (nd->_parent && nd->_parent->_parent) {
+                    splitset.insert(nd->_split);
+                }
+#endif
 			}
 			else {
                 // leaf node
@@ -945,12 +959,20 @@ namespace treedist {
                 
 				// set bit corresponding to this leaf node's index
 				nd->_split.setBitAt(leaf_index);
+    
+#if defined(DEBUGGING)
+                cerr << "leaf " << nd->_number << " (before standardization): " << nd->_split.createPatternRepresentation() << " (inserted)" << endl;
+#endif
+
+                // Reverse bits if first bit is set
+                nd->_split.standardize();
                 
                 // set weight of split to edge length
                 nd->_split.setWeight(nd->_edge_length);
 
-                // //temporary!
-                // cerr << "leaf: " << nd->_split.createPatternRepresentation() << " (inserted)" << endl;
+#if defined(DEBUGGING)
+                cerr << "leaf " << nd->_number << " (after standardization): " << nd->_split.createPatternRepresentation() << " (inserted)" << endl;
+#endif
 
 				// add this leaf node's split to splitset
 				splitset.insert(nd->_split);
