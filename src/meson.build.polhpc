@@ -1,5 +1,5 @@
 project('treedist', 'cpp',
-	default_options : ['cpp_std=c++11','buildtype=release','prefix=/home/pol02003/treedist'],
+	default_options : ['cpp_std=c++11','buildtype=release','prefix=/home/pol02003/op'],
 	version : '1.0')
 cpp = meson.get_compiler('cpp')
 
@@ -14,7 +14,7 @@ incl_ncl = include_directories('/home/pol02003/include')
 incl_boost = include_directories('/home/pol02003/boost_1_72_0')
 
 # This line creates the executable file
-executable('treedist', 'main.cpp', install: true, install_dir: '.', dependencies: [lib_ncl,lib_program_options,lib_system,lib_filesystem], include_directories: [incl_ncl,incl_boost])
+executable('op', 'main.cpp', install: true, install_dir: '.', dependencies: [lib_ncl,lib_program_options,lib_system,lib_filesystem], include_directories: [incl_ncl,incl_boost])
 
 # These lines just copy files to the install directory
 #install_data('treedist.conf', install_dir: '.')

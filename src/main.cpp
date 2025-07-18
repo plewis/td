@@ -1,40 +1,19 @@
-//
-//  main.cpp
-//  TreeDist project
-//
-//  Created by Paul O. Lewis on 2024-01-31.
-//
-
 #include <iostream>
-#include <memory>
-#include <regex>
-#include "output_manager.hpp"
+#include "strom.hpp"
 
-using namespace std;
-using namespace treedist;
-
-OutputManager om;
-
-#include "node.hpp"
-#include "lot.hpp"
-#include "treedist.hpp"
-#include "xtreedist.hpp"
-
-Lot rng;
+using namespace strom;
 
 // static data member initializations
-string     TreeDist::_program_name         = "treedist";
-unsigned        TreeDist::_major_version        = 1;
-unsigned        TreeDist::_minor_version        = 0;
-
-const double    Node::_smallest_edge_length     = 1.0e-12;
+string  Strom::_program_name        = "kfdist";
+unsigned     Strom::_major_version       = 1;
+unsigned     Strom::_minor_version       = 0;
+const double Node::_smallest_edge_length = 1.0e-12;
 
 int main(int argc, const char * argv[]) {
-
-    TreeDist td;
+    Strom strom;
     try {
-        td.processCommandLineOptions(argc, argv);
-        td.run();
+        strom.processCommandLineOptions(argc, argv);
+        strom.run();
     }
     catch(std::exception & x) {
         cerr << "Exception: " << x.what() << endl;

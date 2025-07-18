@@ -1,4 +1,4 @@
-#pragma once    
+#pragma once
 
 #include <vector>
 #include <memory>
@@ -6,260 +6,236 @@
 #include <map>
 #include <climits>
 #include <cassert>
+#include <boost/container/container_fwd.hpp>
 
 using namespace std;
+using namespace boost;
 
-namespace treedist {
+namespace strom
+    {
 
-	class Split {
-	public:
-		Split();
-		Split(const Split& other);
-		~Split();
+    class Split
+        {
+        public:
+                                                                Split();
+                                                                ~Split();
 
-		Split& operator=(const Split& other);
-		bool                                                operator==(const Split& other) const;
-		bool                                                operator<(const Split& other) const;
+            bool                                                operator==(const Split & other) const;
+            bool                                                operator<(const Split & other) const;
 
-		void                                                clear();
-		void                                                resize(unsigned nleaves);
+            void                                                clear();
+            void                                                resize(unsigned nleaves);
 
-		typedef unsigned long                               split_unit_t;
-		typedef vector<split_unit_t>                        split_t;
-		typedef set<Split>                                  treeid_t;
-		typedef map< treeid_t, vector<unsigned> >           treemap_t;
-		typedef tuple<unsigned, unsigned, unsigned>         split_metrics_t;
-  
-		split_unit_t                                        getBits(unsigned unit_index) const;
-		bool                                                getBitAt(unsigned leaf_index) const;
-		void                                                setBitAt(unsigned leaf_index);
-		void                                                addSplit(const Split& other);
-  
-        double                                              getWeight() const;
-        void                                                setWeight(double w);
+            typedef unsigned long                               split_unit_t;
+            typedef vector<split_unit_t>                        split_t;
+            typedef set<Split>                                  treeid_t;
+            typedef pair<treeid_t, treeid_t>                    treeid_pair_t;
+            typedef map< treeid_t, vector<unsigned> >           treemap_t;
 
-        void                                                standardize();
+            void                                                setEdgeLen(double v);
+            double                                              getEdgeLen() const;
 
-		bool                                                isEquivalent(const Split& other) const;
-		bool                                                isCompatible(const Split& other) const;
-		bool                                                conflictsWith(const Split& other) const;
+            const split_t &                                     getBits() const;
 
-		string                                              createPatternRepresentation() const;
-		split_metrics_t                                     getSplitMetrics() const;
+            unsigned                                            getSize() const;
+            unsigned                                            getNumBitsSet() const;
 
-	private:
+            void                                                bitwiseAnd(const Split & other);
+            unsigned                                            findFirstSetBit() const;
+            void                                                invertBits();
+            bool                                                subsumedIn(const Split & other) const;
+            bool                                                compatibleWith(const Split & other) const;
 
-		split_unit_t                                        _mask;
-		split_t                                             _bits;
-		unsigned                                            _bits_per_unit;
-		unsigned                                            _nleaves;
-        double                                              _weight;
+            void                                                setBitAt(unsigned leaf_index);
+            void                                                addSplit(const Split & other);
 
-	public:
+            string                                              createPatternRepresentation(bool show_edge_length = false) const;
 
-		typedef std::shared_ptr< Split >                    SharedPtr;
-	};
+        private:
 
-	inline Split::Split() {
-		_mask = 0L;
-		_nleaves = 0;
-		_bits_per_unit = (CHAR_BIT) * sizeof(Split::split_unit_t);
-		clear();
-		//cout << "Constructing a Split" << endl;
-	}
+            double                                              _edgelen;
+            split_t                                             _bits;
+            unsigned                                            _bits_per_unit;
+            unsigned                                            _nleaves;
 
-	inline Split::Split(const Split& other) {
-		_mask = other._mask;
-		_nleaves = other._nleaves;
-		_bits_per_unit = (CHAR_BIT) * sizeof(Split::split_unit_t);
-		_bits = other._bits;
-        _weight = other._weight;
-		//cout << "Constructing a Split by copying an existing split" << endl;
-	}
+        public:
 
-	inline Split::~Split() {
-		//cout << "Destroying a Split" << endl;
-	}
+            typedef std::shared_ptr< Split >                    SharedPtr;
+    };
 
-	inline void Split::clear() {
-        _weight = 0.0;
-		for (auto& u : _bits) {
-			u = 0L;
-		}
-	}
+inline Split::Split() {
+    _edgelen = 0.0;
+    _nleaves = 0;
+    _bits_per_unit = (CHAR_BIT)*sizeof(Split::split_unit_t);
+    clear();
+    //cout << "Constructing a Split" << endl;
+    }
 
-	inline Split& Split::operator=(const Split& other) {
-		_nleaves = other._nleaves;
-		_bits = other._bits;
-        _weight = other._weight;
-		return *this;
-	}
+inline Split::~Split() {
+    //cout << "Destroying a Split" << endl;
+    }
 
-	inline bool Split::operator==(const Split& other) const {
-		return (_bits == other._bits);
-	}
-
-	inline bool Split::operator<(const Split& other) const {
-		assert(_bits.size() == other._bits.size());
-		return (_bits < other._bits);
-	}
-
-	inline void Split::resize(unsigned nleaves) {
-		_nleaves = nleaves;
-		unsigned nunits = 1 + ((nleaves - 1) / _bits_per_unit);
-		_bits.resize(nunits);
-
-		// create mask used to select only those bits used in final unit
-		unsigned num_unused_bits = nunits * _bits_per_unit - _nleaves;
-		unsigned num_used_bits = _bits_per_unit - num_unused_bits;
-		_mask = 0L;
-		split_unit_t unity = 1;
-		for (unsigned i = 0; i < num_used_bits; i++)
-			_mask |= (unity << i);
-
-		clear();
-	}
-
-	inline void Split::setBitAt(unsigned leaf_index) {
-		unsigned unit_index = leaf_index / _bits_per_unit;
-		unsigned bit_index = leaf_index - unit_index * _bits_per_unit;
-		split_unit_t unity = 1;
-		split_unit_t bit_to_set = unity << bit_index;
-		_bits[unit_index] |= bit_to_set;
-	}
-
-	inline Split::split_unit_t Split::getBits(unsigned unit_index) const {
-		assert(unit_index < _bits.size());
-		return _bits[unit_index];
-	}
-
-	inline bool Split::getBitAt(unsigned leaf_index) const {
-		unsigned unit_index = leaf_index / _bits_per_unit;
-		unsigned bit_index = leaf_index - unit_index * _bits_per_unit;
-		split_unit_t unity = 1;
-		split_unit_t bit_to_set = unity << bit_index;
-		return (bool)(_bits[unit_index] & bit_to_set);
-	}
-
-	inline void Split::addSplit(const Split& other) {
-		unsigned nunits = (unsigned)_bits.size();
-		assert(nunits == other._bits.size());
-		for (unsigned i = 0; i < nunits; ++i) {
-			_bits[i] |= other._bits[i];
-		}
-	}
-
-	inline string Split::createPatternRepresentation() const {
-		string s;
-		unsigned ntax_added = 0;
-		for (unsigned i = 0; i < _bits.size(); ++i) {
-			for (unsigned j = 0; j < _bits_per_unit; ++j) {
-				split_unit_t bitmask = ((split_unit_t)1 << j);
-				bool bit_is_set = ((_bits[i] & bitmask) > (split_unit_t)0);
-				if (bit_is_set)
-					s += '*';
-				else
-					s += '-';
-				if (++ntax_added == _nleaves)
-					break;
-			}
-		}
-		return s;
-	}
-
-	inline void Split::standardize() {
-        // If first bit is set, reverse all bits
-        // _bits[1] _bits[0]
-        // 00001111 11111111 _mask
-        // 00001001 00011010 not standardized
-        // 00000110 11100101 standardized
-        
-		unsigned nunits = (unsigned)_bits.size();
-		assert(nunits > 0);
-        
-        // See if first bit is set
-        split_unit_t unity = 1;
-        bool first_bit_set = _bits[0] & unity;
-        
-        if (first_bit_set) {
-            for (unsigned i = 0; i < nunits; ++i) {
-                // Reverse all bits
-                _bits[i] = ~_bits[i];
-                
-                // Apply mask to zero bits not currently used
-                _bits[i] &= _mask;
-            }
+inline void Split::clear() {
+    _edgelen = 0.0;
+    for (auto & u : _bits) {
+        u = 0L;
         }
     }
-    
-	inline bool Split::isEquivalent(const Split& other) const {
-		unsigned nunits = (unsigned)_bits.size();
-		assert(nunits > 0);
 
-		// polarity 1 means root is on the same side of both splits
-		// polarity 2 means they are inverted relative to one another
-		unsigned polarity = 0;
-		for (unsigned i = 0; i < nunits; ++i) {
-			split_unit_t a = _bits[i];
-			split_unit_t b = other._bits[i];
-			bool a_equals_b = (a == b);
-			bool a_equals_inverse_b = (a == ~b);
-			if (i == nunits - 1) {
-				a_equals_inverse_b = (a == (~b & _mask));
-			}
-			bool ok = (a_equals_b || a_equals_inverse_b);
-			if (ok) {
-				if (polarity == 0) {
-					// First unit examined determines polarity
-					if (a_equals_b)
-						polarity = 1;
-					else
-						polarity = 2;
-				}
-				else {
-					// Polarity determined by first unit used for all subsequent units
-					if (polarity == 1 && !a_equals_b)
-						return false;
-					else if (polarity == 2 && !a_equals_inverse_b)
-						return false;
-				}
-			}
-			else {
-				return false;
-			}
-		}
-
-		// All of the units were equivalent, so that means the splits are equivalent
-		return true;
-	}
-
-	inline bool Split::isCompatible(const Split& other) const {
-		for (unsigned i = 0; i < _bits.size(); ++i) {
-			split_unit_t a = _bits[i];
-			split_unit_t b = other._bits[i];
-			split_unit_t a_and_b = (a & b);
-			bool equals_a = (a_and_b == a);
-			bool equals_b = (a_and_b == b);
-			if (a_and_b && !(equals_a || equals_b)) {
-				// A failure of any unit to be compatible makes the entire split incompatible
-				return false;
-			}
-		}
-
-		// None of the units were incompatible, so that means the splits are compatible
-		return true;
-	}
-
-	inline bool Split::conflictsWith(const Split& other) const {
-		return !isCompatible(other);
-	}
-
-    inline double Split::getWeight() const {
-        return _weight;
+inline bool Split::operator==(const Split & other) const {
+    return (_bits == other._bits);
     }
-    
-    inline void Split::setWeight(double w) {
-        _weight = w;
+
+inline bool Split::operator<(const Split & other) const {
+    assert(_bits.size() == other._bits.size());
+    return (_bits < other._bits);
+    }
+
+inline const Split::split_t & Split::getBits() const {
+    return _bits;
+}
+
+inline unsigned Split::getSize() const {
+    return _nleaves;
+}
+
+inline void Split::resize(unsigned nleaves) {
+    _nleaves = nleaves;
+    unsigned nunits = 1 + ((nleaves - 1)/_bits_per_unit);
+    _bits.resize(nunits);
+    clear();
+}
+
+    inline void Split::setEdgeLen(double edgelen) {
+    _edgelen = edgelen;
+    }
+
+inline double Split::getEdgeLen() const {
+    return _edgelen;
+}
+
+inline void Split::setBitAt(unsigned leaf_index) {
+    unsigned unit_index = leaf_index/_bits_per_unit;
+    unsigned bit_index = leaf_index - unit_index*_bits_per_unit;
+    split_unit_t bit_to_set = 1 << bit_index;
+    _bits[unit_index] |= bit_to_set;
+    }
+
+inline void Split::addSplit(const Split & other) {
+    unsigned nunits = (unsigned)_bits.size();
+    assert(nunits == other._bits.size());
+    for (unsigned i = 0; i < nunits; ++i)
+        {
+        _bits[i] |= other._bits[i];
+        }
+    }
+
+inline unsigned Split::getNumBitsSet() const {
+    unsigned n = 0;
+    unsigned ntax_added = 0;
+    for (unsigned i = 0; i < _bits.size(); ++i) {
+        for (unsigned j = 0; j < _bits_per_unit; ++j) {
+            split_unit_t bitmask = ((split_unit_t)1 << j);
+            bool bit_is_set = ((_bits[i] & bitmask) > (split_unit_t)0);
+            if (bit_is_set)
+                n++;
+            if (++ntax_added == _nleaves)
+                break;
+        }
+    }
+    return n;
+}
+
+inline void Split::bitwiseAnd(const Split & other) {
+    const split_t & other_bits = other.getBits();
+    assert(_bits.size() == other_bits.size());
+    for (unsigned i = 0; i < _bits.size(); ++i) {
+        _bits[i] &= other_bits[i];
+    }
+}
+
+inline unsigned Split::findFirstSetBit() const {
+    unsigned bit_index = 0;
+    for (auto & u : _bits) {
+        if (u > 0) {
+            while ((u & ((split_unit_t)1 << bit_index)) == 0)
+                bit_index++;
+            break;
+        }
+    }
+    return bit_index;
+}
+
+inline void Split::invertBits() {
+    for (auto & u : _bits) {
+        u = ~u;
+    }
+}
+
+inline bool Split::compatibleWith(const Split & other) const {
+    const split_t & other_bits = other._bits;
+    assert(_bits.size() == other_bits.size());
+    bool is_compatible = true;
+    for (unsigned i = 0; i < _bits.size(); ++i) {
+        split_unit_t a       = _bits[i];
+        split_unit_t b       = other_bits[i];
+        split_unit_t a_and_b = (a & b);
+        bool equals_a   = (a_and_b == a);
+        bool equals_b   = (a_and_b == b);
+        if (a_and_b && !(equals_a || equals_b)) {
+            // A failure of any unit to be compatible makes the entire split incompatible
+            is_compatible = false;
+            break;
+        }
+    }
+    return is_compatible;
+}
+
+inline bool Split::subsumedIn(const Split & other) const {
+    // Example: this is NOT subsumed in other
+    // 8421
+    // **-* 13 this <----------+
+    // **-- 12 other           | not equal
+    // **-- 12 this & other <--+
+    //
+    // Example: this IS subsumed in other
+    // 8421
+    // **-- 12 this <----------+
+    // **-* 13 other           | equal
+    // **-- 12 this & other <--+
+    //
+    // Example: this is compatible with, but not subsumed in, other
+    // 8421
+    // **-- 12 this <----------+
+    // --**  3 other           | not equal
+    // ----  0 this & other <--+
+    const split_t & other_bits = other.getBits();
+    assert(_bits.size() == other_bits.size());
+    for (unsigned i = 0; i < _bits.size(); ++i) {
+        if ((_bits[i] & other_bits[i]) != _bits[i])
+            return false;
+    }
+    return true;
+}
+
+inline string Split::createPatternRepresentation(bool show_edge_length) const {
+    string s;
+    if (show_edge_length)
+        s += str(format("%.3f: ") % _edgelen);
+    unsigned ntax_added = 0;
+    for (unsigned i = 0; i < _bits.size(); ++i) {
+        for (unsigned j = 0; j < _bits_per_unit; ++j) {
+            split_unit_t bitmask = ((split_unit_t)1 << j);
+            bool bit_is_set = ((_bits[i] & bitmask) > (split_unit_t)0);
+            if (bit_is_set)
+                s += '*';
+            else
+                s += '-';
+            if (++ntax_added == _nleaves)
+                break;
+            }
+        }
+    return s;
     }
 
 }
