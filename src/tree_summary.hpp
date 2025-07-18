@@ -10,7 +10,7 @@
 #include <boost/range/adaptor/reversed.hpp>
 #include "split.hpp"
 #include "tree_manip.hpp"
-#include "xstrom.hpp"
+#include "xop.hpp"
 
 #include "ncl/nxsmultiformat.h"
 
