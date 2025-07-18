@@ -1,16 +1,20 @@
 #include <iostream>
+
+// Uncomment the line below to save incompatibility graphs as dot files for debugging purposes
+//#define OP_SAVE_DOT_FILE
+
 #include "op.hpp"
 
-using namespace strom;
+using namespace op;
 
 // static data member initializations
-string  Strom::_program_name        = "kfdist";
-unsigned     Strom::_major_version       = 1;
-unsigned     Strom::_minor_version       = 0;
+string  OP::_program_name        = "kfdist";
+unsigned     OP::_major_version       = 1;
+unsigned     OP::_minor_version       = 0;
 const double Node::_smallest_edge_length = 1.0e-12;
 
 int main(int argc, const char * argv[]) {
-    Strom strom;
+    OP strom;
     try {
         strom.processCommandLineOptions(argc, argv);
         strom.run();

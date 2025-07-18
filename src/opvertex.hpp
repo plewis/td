@@ -7,7 +7,7 @@
 using namespace std;
 using namespace boost;
 
-namespace strom {
+namespace op {
 
     struct OPVertex {
         OPVertex() : _split(nullptr), _capacity(0), _visited(false), _parent_index(-1) {}

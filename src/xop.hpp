@@ -1,9 +1,13 @@
 #pragma once
 
-class XStrom : public std::runtime_error
+using namespace std;
+using namespace boost;
+
+class Xop : public std::runtime_error
     {
     public:
-                    XStrom() : std::runtime_error("error") {}
-        explicit    XStrom(const string & s) : std::runtime_error(s) {}
-                    ~XStrom() override = default;
+                    Xop() : std::runtime_error("error") {}
+                    Xop(const format & f) : runtime_error(str(f)) {}
+        explicit    Xop(const string & s) : runtime_error(s) {}
+                    ~Xop() override = default;
     };

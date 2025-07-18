@@ -11,17 +11,17 @@
 using namespace std;
 using namespace boost;
 
-namespace strom {
+namespace op {
 
-class Strom {
+class OP {
     public:
-                            Strom();
-                            ~Strom();
+                            OP();
+                            ~OP();
 
         void                clear();
         void                processCommandLineOptions(int argc, const char * argv[]);
-        double              calcBHVDistance(unsigned ref_index, unsigned test_index);
-        double              calcKFDistance(unsigned ref_index, unsigned test_index);
+        double              calcBHVDistance(unsigned ref_index, unsigned test_index) const;
+        double              calcKFDistance(unsigned ref_index, unsigned test_index) const;
         void                run();
 
     private:
@@ -38,9 +38,11 @@ class Strom {
         void opSplitAtCommonEdges(
             const vector<Split> & common_edges,
             vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const;
+#if defined(OP_SAVE_DOT_FILE)
         static void opSaveIncompatibilityGraph(
             vector<OPVertex> & avect,
             vector<OPVertex> & bvect);
+#endif
         static void opEdmondsKarp(
             vector<OPVertex> & avect,
             vector<OPVertex> & bvect,
@@ -50,7 +52,7 @@ class Strom {
             Split::treeid_t & D2,
             bool quiet);
         bool opRefineSupport(
-            Split::treeid_pair_t & AB,
+            const Split::treeid_pair_t & AB,
             Split::treeid_pair_t & AB1,
             Split::treeid_pair_t & AB2) const;
         double opCalcGeodesicDist(
@@ -67,21 +69,21 @@ class Strom {
 
     };
 
-inline Strom::Strom() : _quiet(true) {
-    //cout << "Constructing a Strom" << endl;
+inline OP::OP() : _quiet(true) {
+    //cout << "Constructing a SStrom" << endl;
     clear();
 }
 
-inline Strom::~Strom() = default;
+inline OP::~OP() = default;
 
-inline void Strom::clear() {
+inline void OP::clear() {
     _quiet = true;
     _tree_file_name = "";
     _distance_measure = "geodesic";
     _tree_summary   = nullptr;
 }
 
-inline void Strom::processCommandLineOptions(int argc, const char * argv[]) {
+inline void OP::processCommandLineOptions(int argc, const char * argv[]) {
     program_options::variables_map       vm;
     program_options::options_description desc("Allowed options");
     desc.add_options()
@@ -93,7 +95,7 @@ inline void Strom::processCommandLineOptions(int argc, const char * argv[]) {
         ;
     program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
     try {
-        const program_options::parsed_options & parsed = program_options::parse_config_file< char >("kfdist.conf", desc, false);
+        const program_options::parsed_options & parsed = program_options::parse_config_file< char >("op.conf", desc, false);
         program_options::store(parsed, vm);
     }
     catch(program_options::reading_file &) {
@@ -101,20 +103,20 @@ inline void Strom::processCommandLineOptions(int argc, const char * argv[]) {
     }
     program_options::notify(vm);
 
-    // If user specified --help on command line, output usage summary and quit
+    // If the user specified --help on the command line, output usage summary and quit
     if (vm.count("help") > 0) {
         cout << desc << "\n";
         exit(1);
     }
 
-    // If user specified --version on command line, output version and quit
+    // If the user specified --version on the command line, output the version and quit
     if (vm.count("version") > 0) {
         cout << str(format("This is %s version %d.%d") % _program_name % _major_version % _minor_version) << endl;
         exit(1);
     }
 }
 
-inline double Strom::opCalcTreeIDLength(const Split::treeid_t & splits) {
+inline double OP::opCalcTreeIDLength(const Split::treeid_t & splits) {
     double length = 0.0;
     for (auto & split : splits) {
         length += pow(split.getEdgeLen(),2);
@@ -122,7 +124,7 @@ inline double Strom::opCalcTreeIDLength(const Split::treeid_t & splits) {
     return sqrt(length);
 }
 
-inline double Strom::opCalcLeafContribution(const Split::treeid_t & Alvs, const Split::treeid_t & Blvs) const {
+inline double OP::opCalcLeafContribution(const Split::treeid_t & Alvs, const Split::treeid_t & Blvs) const {
     if (!_quiet) {
         cout << "Leaves from starting tree:" << endl;
         for (auto & a : Alvs) {
@@ -150,7 +152,7 @@ inline double Strom::opCalcLeafContribution(const Split::treeid_t & Alvs, const 
     return leaf_contribution_squared;
 }
 
-inline double Strom::opFindCommonEdges(const Split::treeid_t & A, const Split::treeid_t & B, vector<Split> & common_edges) const {
+inline double OP::opFindCommonEdges(const Split::treeid_t & A, const Split::treeid_t & B, vector<Split> & common_edges) const {
     set_intersection(
         A.begin(), A.end(),
         B.begin(), B.end(),
@@ -175,7 +177,7 @@ inline double Strom::opFindCommonEdges(const Split::treeid_t & A, const Split::t
     return common_edge_contribution_squared;
 }
 
-inline void Strom::opSplitAtCommonEdges(const vector<Split> & common_edges, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
+inline void OP::opSplitAtCommonEdges(const vector<Split> & common_edges, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
     vector<pair<Split::treeid_t,Split::treeid_t> > out_pairs;
     for (auto & common : common_edges) {
         //cout << "\ncommon: " << common.createPatternRepresentation() << endl;
@@ -189,11 +191,11 @@ inline void Strom::opSplitAtCommonEdges(const vector<Split> & common_edges, vect
 
         for (auto & inpair : in_pairs) {
             //cout << "\n***** new tree pair *****" << endl;
-            // Separate out splits in starting (a_splits) vs ending (b_splits) (sub)trees
+            // Separate out splits in starting (a_splits) vs. ending (b_splits) (sub)trees
             Split::treeid_t & a_splits = inpair.first;
             Split::treeid_t & b_splits = inpair.second;
 
-            // Create split sets to hold splits subsumed in s vs other splits
+            // Create split sets to hold splits subsumed in s vs. other splits
             Split::treeid_t a_common_splits, b_common_splits;
             Split::treeid_t a_other_splits, b_other_splits;
 
@@ -274,7 +276,8 @@ inline void Strom::opSplitAtCommonEdges(const vector<Split> & common_edges, vect
     }
 }
 
-inline void Strom::opSaveIncompatibilityGraph(vector<OPVertex> & avect, vector<OPVertex> & bvect) {
+#if defined(OP_SAVE_DOT_FILE)
+inline void OP::opSaveIncompatibilityGraph(vector<OPVertex> & avect, vector<OPVertex> & bvect) {
     unsigned minsize = min(avect.size(), bvect.size());
     unsigned maxsize = max(avect.size(), bvect.size());
 
@@ -346,8 +349,8 @@ inline void Strom::opSaveIncompatibilityGraph(vector<OPVertex> & avect, vector<O
 
     // dotf << "\t{\n";
 
-    for (unsigned i = 0; i < anodes.size(); ++i) {
-        dotf << str(format("\t\t%s -> %s [style = invis];\n") % get<3>(anodes[i]) % get<0>(anodes[i]));
+    for (auto & anode : anodes) {
+        dotf << str(format("\t\t%s -> %s [style = invis];\n") % get<3>(anode) % get<0>(anode));
     }
 
     for (unsigned i = 0; i < avect.size(); ++i) {
@@ -360,16 +363,17 @@ inline void Strom::opSaveIncompatibilityGraph(vector<OPVertex> & avect, vector<O
         }
     }
 
-    for (unsigned i = 0; i < bnodes.size(); ++i) {
-        dotf << str(format("\t\t%s -> %s [style = invis, dir = back];\n") % get<0>(bnodes[i]) % get<3>(bnodes[i]));
+    for (auto & bnode : bnodes) {
+        dotf << str(format("\t\t%s -> %s [style = invis, dir = back];\n") % get<0>(bnode) % get<3>(bnode));
     }
 
     // dotf << "\t}\n";
     dotf << "}\n";
     dotf.close();
 }
+#endif
 
-inline void Strom::opEdmondsKarp(
+inline void OP::opEdmondsKarp(
         vector<OPVertex> & avect,
         vector<OPVertex> & bvect,
         Split::treeid_t & C1,
@@ -378,12 +382,15 @@ inline void Strom::opEdmondsKarp(
         Split::treeid_t & D2,
         bool quiet) {
     // Assumes avect and bvect form an incompatibility graph that is solvable
-    // (i.e. some vertices in avect are compatible with some vertices in bvect)
+    // (i.e., some vertices in avect are compatible with some vertices in bvect)
     if (!quiet) {
         cout << "\nEdmonds-Karp" << endl;
 
-        // Uncomment line below to save graph.dot (visualization of incompatibility graph in dot language)
+#if defined(OP_SAVE_DOT_FILE)
+        // Uncomment the line below to save graph.dot (visualization of incompatibility graph in dot language)
         opSaveIncompatibilityGraph(avect, bvect);
+#endif
+
     }
 
     double max_flow = 0.0;
@@ -405,13 +412,13 @@ inline void Strom::opEdmondsKarp(
 
         // Add all children of the "a" vertices already in the route if they have nonzero capacity
         // and if they haven't already been added
-        auto route_size = (unsigned)route.size();
+        auto route_size = static_cast<unsigned>(route.size());
         for (unsigned aindex = 0; aindex < route_size; aindex++) {
             OPVertex * a = route[aindex];
             for (auto & b : a->_children) {
                 if (b->_capacity > 0.0 && !b->_visited) {
                     b->_visited = true;
-                    b->_parent_index = (int)aindex;
+                    b->_parent_index = static_cast<int>(aindex);
                     route.push_back(b);
                 }
             }
@@ -430,7 +437,7 @@ inline void Strom::opEdmondsKarp(
             // If we did not reach the sink, we're done
             done = true;
         else {
-            // Find minimum capacity along route
+            // Find minimum capacity along the route
             double min_capacity = last->_capacity;
             if (route[last->_parent_index]->_capacity < min_capacity) {
                 min_capacity = route[last->_parent_index]->_capacity;
@@ -439,7 +446,6 @@ inline void Strom::opEdmondsKarp(
 
             if (!quiet) {
                 cout << "\nRoute (asterisks show path obtained by following parents from sink to source):" << endl;
-                auto route_size = (unsigned)route.size();
                 for (unsigned i = 0; i < route.size(); i++) {
                     if (i == last->_parent_index || route[i] == last)
                         cout << str(format("    %s (capacity = %.3f) *") % route[i]->_split->createPatternRepresentation() % route[i]->_capacity) << endl;
@@ -449,7 +455,7 @@ inline void Strom::opEdmondsKarp(
                 cout << "  Min capacity along route: " << min_capacity << endl;
             }
 
-            // Reduce capacities along route by an amount min_capacity
+            // Reduce capacities along the route by an amount min_capacity
             last->_capacity -= min_capacity;
             if (fabs(last->_capacity) < 1e-10) {
                 last->_capacity = 0.0;
@@ -460,10 +466,12 @@ inline void Strom::opEdmondsKarp(
                 route[last->_parent_index]->_capacity = 0.0;
             }
 
+#if defined(OP_SAVE_DOT_FILE)
             if (!quiet) {
-                // Uncomment line below to save graph.dot (visualization of incompatibility graph in dot language)
+                // Uncomment the line below to save graph.dot (visualization of incompatibility graph in dot language)
                 opSaveIncompatibilityGraph(avect, bvect);
             }
+#endif
         }
     }
 
@@ -508,7 +516,7 @@ inline void Strom::opEdmondsKarp(
     }
 }
 
-inline bool Strom::opRefineSupport(Split::treeid_pair_t & AB, Split::treeid_pair_t & AB1, Split::treeid_pair_t & AB2) const {
+inline bool OP::opRefineSupport(const Split::treeid_pair_t & AB, Split::treeid_pair_t & AB1, Split::treeid_pair_t & AB2) const {
     // Create a vector of incompatibility graph vertices
     vector<OPVertex> avect(AB.first.size());
     vector<OPVertex> bvect(AB.second.size());
@@ -535,10 +543,10 @@ inline bool Strom::opRefineSupport(Split::treeid_pair_t & AB, Split::treeid_pair
         bindex++;
     }
 
-    // Create incompatibility graph
+    // Create the incompatibility graph
     unsigned nincompatible = 0;
-    auto asize = (unsigned)avect.size();
-    auto bsize = (unsigned)bvect.size();
+    auto asize = static_cast<unsigned>(avect.size());
+    auto bsize = static_cast<unsigned>(bvect.size());
     for (unsigned i = 0; i < asize; i++) {
         for (unsigned j = 0; j < bsize; j++) {
             const Split * a = avect[i]._split;
@@ -606,7 +614,7 @@ inline bool Strom::opRefineSupport(Split::treeid_pair_t & AB, Split::treeid_pair
     return success;
 }
 
-inline double Strom::opCalcGeodesicDist(vector<Split::treeid_pair_t> & ABpairs) const {
+inline double OP::opCalcGeodesicDist(vector<Split::treeid_pair_t> & ABpairs) const {
     // Assumes a_splits and b_splits have no common edges
     vector<Split::treeid_pair_t> support;
     bool done = false;
@@ -660,64 +668,64 @@ inline double Strom::opCalcGeodesicDist(vector<Split::treeid_pair_t> & ABpairs) 
     return geodesic_distance;
 }
 
-inline double Strom::calcBHVDistance(unsigned ref_index, unsigned test_index) {
-    // Get reference tree
+inline double OP::calcBHVDistance(unsigned ref_index, unsigned test_index) const {
+    // Get the reference tree
     string ref_newick = _tree_summary->getNewick(ref_index);
     bool ref_isrooted = _tree_summary->isRooted(ref_index);
 
-    // Get test tree
+    // Get the test tree
     string test_newick = _tree_summary->getNewick(test_index);
     bool test_isrooted = _tree_summary->isRooted(ref_index);
 
     // Ensure both trees are rooted
     if (!ref_isrooted || !test_isrooted) {
-        throw XStrom("Trees must be rooted in this version");
+        throw Xop("Trees must be rooted in this version");
     }
 
-    // Build reference tree
+    // Build the reference tree
     TreeManip starttm;
     starttm.buildFromNewick(ref_newick, /*rooted*/ref_isrooted, /*allow_polytomies*/false);
     //TODO: get rooted status from treeManip object
 
-    // Store splits from reference tree
+    // Store splits from the reference tree
     Split::treeid_t A;
     Split::treeid_t Alvs;
     starttm.storeSplits(A, Alvs);
 
     if (!_quiet) {
         cout << "Internal splits from starting tree:" << endl;
-        for (auto a : A) {
+        for (const auto& a : A) {
             cout << "  " << a.createPatternRepresentation() << endl;
         }
     }
 
-    // Build test tree
+    // Build the test tree
     TreeManip endtm;
     endtm.buildFromNewick(test_newick, /*rooted*/test_isrooted, /*allow_polytomies*/false);
 
-    // Store splits from reference tree
+    // Store splits from the reference tree
     Split::treeid_t B;
     Split::treeid_t Blvs;
     endtm.storeSplits(B, Blvs);
 
     if (!_quiet) {
         cout << "Internal splits from ending tree:" << endl;
-        for (auto b : B) {
+        for (const auto& b : B) {
             cout << "  " << b.createPatternRepresentation() << endl;
         }
     }
 
-    // Calculate contribution of leaf edges to geodesic
+    // Calculate the contribution of leaf edges to the geodesic
     double leaf_contribution_squared = opCalcLeafContribution(Alvs, Blvs);
 
-    // Find common edges and calculate contribution of common edge lengths to geodesic
+    // Find common edges and calculate the contribution of common edge lengths to the geodesic
     vector<Split> common_edges;
     double common_edge_contribution_squared = opFindCommonEdges(A, B, common_edges);
 
-    // Create vector of paired subtrees by splitting at common edges
+    // Create a vector of paired subtrees by splitting at common edges
     vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
-    in_pairs.push_back(make_pair(A,B));
-    if (common_edges.size() > 0)
+    in_pairs.emplace_back(A,B);
+    if (!common_edges.empty())
         opSplitAtCommonEdges(common_edges, in_pairs);
 
     unsigned pair_index = 1;
@@ -731,12 +739,12 @@ inline double Strom::calcBHVDistance(unsigned ref_index, unsigned test_index) {
 
         if (!_quiet) {
             cout << "  A splits:" << endl;
-            for (auto a : ABpairs[0].first) {
+            for (const auto& a : ABpairs[0].first) {
                 cout << "    " << a.createPatternRepresentation() << endl;
             }
 
             cout << "  B splits:" << endl;
-            for (auto b : ABpairs[0].second) {
+            for (const auto& b : ABpairs[0].second) {
                 cout << "    " << b.createPatternRepresentation() << endl;
             }
         }
@@ -750,7 +758,8 @@ inline double Strom::calcBHVDistance(unsigned ref_index, unsigned test_index) {
         ++pair_index;
     }
 
-    cout << endl;
+    if (!_quiet)
+        cout << endl;
 
     // Calculate total geodesic distance
     double total_geodesic_distance = 0.0;
@@ -767,39 +776,39 @@ inline double Strom::calcBHVDistance(unsigned ref_index, unsigned test_index) {
     return total_geodesic_distance;
 }
 
-inline double Strom::calcKFDistance(unsigned ref_index, unsigned test_index) {
-    // Get reference tree
+inline double OP::calcKFDistance(unsigned ref_index, unsigned test_index) const {
+    // Get the reference tree
     string ref_newick = _tree_summary->getNewick(ref_index);
     bool ref_isrooted = _tree_summary->isRooted(ref_index);
-    
-    // Get test tree
+
+    // Get the test tree
     string test_newick = _tree_summary->getNewick(test_index);
     bool test_isrooted = _tree_summary->isRooted(ref_index);
-    
+
     // Ensure both trees are rooted
     if (!ref_isrooted || !test_isrooted) {
-        throw XStrom("Trees must be rooted in this version of kltest");
+        throw Xop(format("Trees must be rooted in this version of %s") % OP::_program_name);
     }
 
-    // Build reference tree
+    // Build the reference tree
     TreeManip reftm;
     reftm.buildFromNewick(ref_newick, /*rooted*/ref_isrooted, /*allow_polytomies*/false);
     //TODO: get rooted status from treeManip object
-    
-    // Store splits from reference tree
+
+    // Store splits from the reference tree
     Split::treeid_t refsplits;
     Split::treeid_t reflvs;
     reftm.storeSplits(refsplits, reflvs);
-    
-    // Build test tree
+
+    // Build the test tree
     TreeManip testtm;
     testtm.buildFromNewick(test_newick, /*rooted*/test_isrooted, /*allow_polytomies*/false);
-    
-    // Store splits from reference tree
+
+    // Store splits from the reference tree
     Split::treeid_t testsplits;
     Split::treeid_t testlvs;
     testtm.storeSplits(testsplits, testlvs);
-    
+
     // Store union of refsplits and testsplits in allsplits
     Split::treeid_t allsplits;
     set_union(
@@ -832,23 +841,24 @@ inline double Strom::calcKFDistance(unsigned ref_index, unsigned test_index) {
         }
     }
         
-    // Create map in which keys are taxon names and values are Node pointers
-    // for reference tree
+    // Create the map in which keys are taxon names and values are Node pointers
+    // for the reference tree
     map<string, Node *> leafmap0;
     reftm.createLeafNodeMap(leafmap0);
 
-    // Create map in which keys are taxon names and values are Node pointers
-    // for test tree
+    // Create a map in which keys are taxon names and values are Node pointers
+    // for the test tree
     map<string, Node *> leafmap;
     testtm.createLeafNodeMap(leafmap);
 
     // The two trees should have the same number of leaves
     assert(leafmap0.size() == leafmap.size());
 
-    // Get taxon names from reference tree (assuming the taxon names
+    // Get taxon names from the reference tree (assuming the taxon names
     // in the test tree are the same)
     vector<string> names;
-    for (auto p : leafmap0) {
+    names.reserve(leafmap0.size());
+for (const auto& p : leafmap0) {
         names.push_back(p.first);
     }
     sort(names.begin(), names.end());
@@ -856,7 +866,7 @@ inline double Strom::calcKFDistance(unsigned ref_index, unsigned test_index) {
     // Now calculate squares for leaf nodes, storing in KLleaves
     vector<double> KLleaves(names.size());
     i = 0;
-    for (auto nm : names) {
+    for (const auto& nm : names) {
         Node * nd0 = leafmap0[nm];
         Node * nd  = leafmap[nm];
         double edge_length0 = nd0->getEdgeLength();
@@ -877,18 +887,19 @@ inline double Strom::calcKFDistance(unsigned ref_index, unsigned test_index) {
     return KLdist;
 }
 
-inline void Strom::run() {
+inline void OP::run() {
     try {
         // Read in a tree
-        _tree_summary = TreeSummary::SharedPtr(new TreeSummary());
+        _tree_summary = make_shared<TreeSummary>();
         _tree_summary->readTreefile(_tree_file_name, 0);
         unsigned ntrees = _tree_summary->getNumTrees();
         if (ntrees < 2) {
-            throw XStrom("Must input at least 2 trees to compute tree distances");
+            throw Xop("Must input at least 2 trees to compute tree distances");
         }
 
         if (_distance_measure == "geodesic") {
-            cout << "Writing geodesic distances to file \"bhvdists.txt\"" << endl;
+            if (!_quiet)
+                cout << "Writing geodesic distances to file \"bhvdists.txt\"" << endl;
             ofstream outf("bhvdists.txt");
             outf << "tree	distance to tree 1" << endl;
             for (unsigned i = 1; i < ntrees; i++) {
@@ -898,7 +909,8 @@ inline void Strom::run() {
             outf.close();
         }
         else if (_distance_measure == "kf") {
-            cout << "Writing KF distances to file \"kfdists.txt\"" << endl;
+            if (!_quiet)
+                cout << "Writing KF distances to file \"kfdists.txt\"" << endl;
             ofstream outf("kfdists.txt");
             outf << "tree	distance to tree 1" << endl;
             for (unsigned i = 1; i < ntrees; i++) {
@@ -909,7 +921,7 @@ inline void Strom::run() {
             outf.close();
         }
     }
-    catch (XStrom & x) {
+    catch (Xop & x) {
         cerr << "Strom encountered a problem:\n  " << x.what() << endl;
         }
 }

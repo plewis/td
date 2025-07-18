@@ -11,7 +11,7 @@
 using namespace std;
 using namespace boost;
 
-namespace strom
+namespace op
     {
 
     class Split

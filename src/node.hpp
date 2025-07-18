@@ -5,7 +5,7 @@
 #include  <iostream>
 #include "split.hpp"
 
-namespace strom
+namespace op
     {
 
     class Tree;

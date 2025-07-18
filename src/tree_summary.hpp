@@ -17,7 +17,7 @@
 using namespace std;
 using namespace boost;
 
-namespace strom
+namespace op
     {
 
     class TreeSummary
@@ -63,7 +63,7 @@ inline unsigned TreeSummary::getNumTrees() const {
 inline Tree::SharedPtr TreeSummary::getTree(unsigned index)
     {
     if (index >= _newicks.size())
-        throw XStrom("getTree called with index >= number of stored trees");
+        throw Xop("getTree called with index >= number of stored trees");
 
     TreeManip tm;
 
@@ -75,14 +75,14 @@ inline Tree::SharedPtr TreeSummary::getTree(unsigned index)
 
 inline bool TreeSummary::isRooted(unsigned index) {
     if (index >= _is_rooted.size())
-        throw XStrom("isRooted called with index >= number of stored trees");
+        throw Xop("isRooted called with index >= number of stored trees");
 
         return _is_rooted[index];
 }
 
 inline string TreeSummary::getNewick(unsigned index) {
     if (index >= _newicks.size())
-        throw XStrom("getNewick called with index >= number of stored trees");
+        throw Xop("getNewick called with index >= number of stored trees");
 
         return _newicks[index];
 }
