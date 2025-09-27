@@ -41,6 +41,9 @@ namespace op
             unsigned                                            getSize() const;
             unsigned                                            getNumBitsSet() const;
 
+            double                                              entropy() const;
+            double                                              mutualClusteringInfo(const Split & other) const;
+
             void                                                bitwiseAnd(const Split & other);
             unsigned                                            findFirstSetBit() const;
             void                                                invertBits();
@@ -100,6 +103,102 @@ inline unsigned Split::getSize() const {
     return _nleaves;
 }
 
+inline double Split::entropy() const {
+    assert(_nleaves > 0);
+    double b = static_cast<double>(getNumBitsSet());
+    double n = static_cast<double>(_nleaves);
+    double p = b/n;
+    double q = 1.0 - p;
+    double h = -p*log2(p) - q*log2(q);
+    return h;
+}
+
+inline double Split::mutualClusteringInfo(const Split & other) const {
+    // Example: n = 7
+    //   A1     --**---  pA1   = 2/7
+    //   B1     **--***  pB1   = 5/7
+    //   A2     --****-  pA2   = 4/7
+    //   B2     **----*  pB2   = 3/7
+    //   A1,A2  --**---  pA1A2 = 2/7  iA1A2 = (2/7)*(log2(2/7) - log2(2/7) - log2(4/7)) = 0.23067283
+    //   A1,B2  -------  pA1B2 = 0/7  iA1B2 = (0/7)*(log2(0/7) - log2(2/7) - log2(3/7)) = 0.0
+    //   B1,A2  ----**-  pB1A2 = 2/7  iB1A2 = (2/7)*(log2(2/7) - log2(5/7) - log2(4/7)) = -0.14702091
+    //   B1,B2  **----*  pB1B2 = 3/7  iB1B2 = (3/7)*(log2(3/7) - log2(5/7) - log2(3/7)) = 0.20804007
+    //   Icl = 0.23067283 + 0.0 + (-0.14702091) + 0.20804007 = 0.29169199
+    //
+    // Confirm using TreeDist R package:
+    //   library(TreeDist)
+    //   tree1 <- ape::read.tree(text = '(A,B,(C,D),E,F,G);')
+    //   tree2 <- ape::read.tree(text = '(A,B,(C,D,E,F),G);')
+    //   ClusteringInfoDistance(tree1, tree2, reportMatching = TRUE)
+    //   [1] 1.264965
+    //   attr(,"matching")
+    //   [1] 1
+    //   attr(,"matchedSplits")
+    //   [1] "C D | A B E F G => C D E F | A B G"
+    //   attr(,"matchedScores")
+    //   [1] 0.291692
+    //   attr(,"pairScores")
+    //            [,1]
+    //   [1,] 0.291692
+
+    assert(_nleaves > 0);
+    assert(_nleaves == other.getSize());
+
+    // Define each of the four possible taxon clusters
+    const Split & A1 = *this;
+    Split B1 = *this;
+    B1.invertBits();
+
+    const Split & A2 = other;
+    Split B2 = other;
+    B2.invertBits();
+
+    // cerr << "mutualClusteringInfo:" << endl;
+    // cerr << "  this:  " << this->createPatternRepresentation() << endl;
+    // cerr << "  other: " << other.createPatternRepresentation() << endl;
+    // cerr << "  A1: " << A1.createPatternRepresentation() << endl;
+    // cerr << "  B1: " << B1.createPatternRepresentation() << endl;
+    // cerr << "  A2: " << A2.createPatternRepresentation() << endl;
+    // cerr << "  B2: " << B2.createPatternRepresentation() << endl;
+
+    // Create intersections
+    Split A1A2 = A1;
+    Split A1B2 = A1;
+    Split B1A2 = B1;
+    Split B1B2 = B1;
+    A1A2.bitwiseAnd(A2);
+    A1B2.bitwiseAnd(B2);
+    B1A2.bitwiseAnd(A2);
+    B1B2.bitwiseAnd(B2);
+
+    // cerr << "  A1A2: " << A1A2.createPatternRepresentation() << endl;
+    // cerr << "  A1B2: " << A1B2.createPatternRepresentation() << endl;
+    // cerr << "  B1A2: " << B1A2.createPatternRepresentation() << endl;
+    // cerr << "  B1B2: " << B1B2.createPatternRepresentation() << endl;
+
+    double n = static_cast<double>(_nleaves);
+    double pA1 = static_cast<double>(A1.getNumBitsSet())/n;
+    double pB1 = static_cast<double>(B1.getNumBitsSet())/n;
+    double pA2 = static_cast<double>(A2.getNumBitsSet())/n;
+    double pB2 = static_cast<double>(B2.getNumBitsSet())/n;
+    double pA1A2 = static_cast<double>(A1A2.getNumBitsSet())/n;
+    double pA1B2 = static_cast<double>(A1B2.getNumBitsSet())/n;
+    double pB1A2 = static_cast<double>(B1A2.getNumBitsSet())/n;
+    double pB1B2 = static_cast<double>(B1B2.getNumBitsSet())/n;
+
+    // Compute mutual clustering information (MCI)
+    double Icl = 0.0;
+    if (pA1A2 > 0.0)
+        Icl += pA1A2*(log2(pA1A2) - log2(pA1) - log2(pA2));
+    if (pA1B2 > 0.0)
+        Icl += pA1B2*(log2(pA1B2) - log2(pA1) - log2(pB2));
+    if (pB1A2 > 0.0)
+        Icl += pB1A2*(log2(pB1A2) - log2(pB1) - log2(pA2));
+    if (pB1B2 > 0.0)
+        Icl += pB1B2*(log2(pB1B2) - log2(pB1) - log2(pB2));
+    return Icl;
+}
+
 inline void Split::resize(unsigned nleaves) {
     _nleaves = nleaves;
     unsigned nunits = 1 + ((nleaves - 1)/_bits_per_unit);
@@ -116,6 +215,7 @@ inline double Split::getEdgeLen() const {
 }
 
 inline void Split::setBitAt(unsigned leaf_index) {
+    assert(leaf_index < _nleaves);
     unsigned unit_index = leaf_index/_bits_per_unit;
     unsigned bit_index = leaf_index - unit_index*_bits_per_unit;
     split_unit_t bit_to_set = (split_unit_t)1 << bit_index;

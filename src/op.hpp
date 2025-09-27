@@ -4,77 +4,83 @@ using namespace std;
 using namespace boost;
 
 namespace op {
+    class OP {
+    public:
+        OP();
+        ~OP();
 
-class OP {
-public:
-    OP();
-    ~OP();
+        void                clear();
+        void                processCommandLineOptions(int argc, const char * argv[]);
+        void                run();
 
-    void                clear();
-    void                processCommandLineOptions(int argc, const char * argv[]);
-    void                run();
+    private:
 
-private:
-
-    void testKDE();
-    void calcBandWidth(const vector<double> & sample);
-    double kernelDensity(double x, const vector<double> & sample) const;
-    void rPlotDists(vector<double> & dists, string & rscript, double & hpd_lower, double & hpd_upper, double hpd_level);
-
-    void buildTree(unsigned tree_index, TreeManip & tm) const;
-    double calcBHVDistance(
-        TreeManip & starttm,
-        TreeManip & endtm,
-        vector<Split::treeid_pair_t> & ABpairs,
-        vector<Split::split_pair_t> & commonPairs) const;
-    double calcKFDistance(unsigned ref_index, unsigned test_index) const;
-    void chooseRandomTree(TreeManip & tm, Lot & lot) const;
-    void displaceTreeAlongGeodesic(TreeManip & start_tree, TreeManip & end_tree, double displacement) const;
-    bool frechetCloseEnough(vector<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const;
-    unsigned computeFrechetMean(TreeManip & mean_tree) const;
-    static double opCalcTreeIDLength(
-        const Split::treeid_t & splits);
-    double opCalcLeafContribution(
-        const Split::treeid_t & Alvs,
-        const Split::treeid_t & Blvs,
-        vector<Split::split_pair_t> & commonPairs) const;
-    double opFindCommonEdges(
-        const Split::treeid_t & A,
-        const Split::treeid_t & B,
-        vector<Split::split_pair_t> & commonPairs) const;
-    void opSplitAtCommonEdges(
-        const vector<Split> & common_edges,
-        vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const;
+        void testKDE();
+        void calcBandWidth(const vector<double> & sample);
+        double kernelDensity(double x, const vector<double> & sample) const;
+        void rPlotDists(vector<double> & dists, string & rscript, double & radius, double & hpd_lower, double & hpd_upper, double hpd_level);
+        void calcFrechetMean();
+        void calcPairwise();
+        void buildTree(unsigned tree_index, TreeManip & tm) const;
+        double calcBHVDistance(
+            TreeManip & starttm,
+            TreeManip & endtm,
+            vector<pair<Split::treeid_t, Split::treeid_t> > & in_pairs,
+            vector<Split::treeid_pair_t> & ABpairs,
+            vector<Split::split_pair_t> & commonPairs) const;
+        double calcClusterDistance(
+                TreeManip & starttm,
+                TreeManip & endtm,
+                const vector<pair<Split::treeid_t, Split::treeid_t> > & in_pairs,
+                const vector<Split::split_pair_t> & commonPairs) const;
+        double calcKFDistance(unsigned ref_index, unsigned test_index) const;
+        void chooseRandomTree(TreeManip & tm, Lot & lot) const;
+        void displaceTreeAlongGeodesic(TreeManip & start_tree, TreeManip & end_tree, double displacement) const;
+        bool frechetCloseEnough(vector<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const;
+        unsigned computeFrechetMean(TreeManip & mean_tree) const;
+        static double opCalcTreeIDLength(
+            const Split::treeid_t & splits);
+        double opCalcLeafContribution(
+            const Split::treeid_t & Alvs,
+            const Split::treeid_t & Blvs,
+            vector<Split::split_pair_t> & commonPairs) const;
+        double opFindCommonEdges(
+            const Split::treeid_t & A,
+            const Split::treeid_t & B,
+            vector<Split::split_pair_t> & commonPairs) const;
+        void opSplitAtCommonEdges(
+            const vector<Split> & common_edges,
+            vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const;
 #if defined(OP_SAVE_DOT_FILE)
-    static string opCreateVertexLabel(string name, string capacity, string edgelen, string bipartition);
-    static string opCreateEdgeLabel(double capacity, double reverse_flow);
-    static void opSaveIncompatibilityGraph(
-        OPVertex & source,
-        OPVertex & sink,
-        vector<OPVertex> & avect,
-        vector<OPVertex> & bvect);
+        static string opCreateVertexLabel(string name, string capacity, string edgelen, string bipartition);
+        static string opCreateEdgeLabel(double capacity, double reverse_flow);
+        static void opSaveIncompatibilityGraph(
+            OPVertex & source,
+            OPVertex & sink,
+            vector<OPVertex> & avect,
+            vector<OPVertex> & bvect);
 #endif
 #if 1
-    static void opEdmondsKarp(
-        OPVertex & source,
-        OPVertex & sink,
-        vector<OPVertex> & avect,
-        vector<OPVertex> & bvect,
-        Split::treeid_t & C1,
-        Split::treeid_t & C2,
-        Split::treeid_t & D1,
-        Split::treeid_t & D2,
-        bool quiet);
+        static void opEdmondsKarp(
+            OPVertex & source,
+            OPVertex & sink,
+            vector<OPVertex> & avect,
+            vector<OPVertex> & bvect,
+            Split::treeid_t & C1,
+            Split::treeid_t & C2,
+            Split::treeid_t & D1,
+            Split::treeid_t & D2,
+            bool quiet);
 #else
-    static void opEdmondsKarp(
-        vector<OPVertex> & avect,
-        vector<OPVertex> & bvect,
-        edgemap_t & edgemap,
-        Split::treeid_t & C1,
-        Split::treeid_t & C2,
-        Split::treeid_t & D1,
-        Split::treeid_t & D2,
-        bool quiet);
+        static void opEdmondsKarp(
+            vector<OPVertex> & avect,
+            vector<OPVertex> & bvect,
+            edgemap_t & edgemap,
+            Split::treeid_t & C1,
+            Split::treeid_t & C2,
+            Split::treeid_t & D1,
+            Split::treeid_t & D2,
+            bool quiet);
 #endif
         bool opRefineSupport(
             const Split::treeid_pair_t & AB,
@@ -85,14 +91,17 @@ private:
 
         bool                    _quiet;
         bool                    _output_for_gtp;
-        string                  _frechet_prefix;
+        string                  _prefix;
+        bool                    _pairwise;
+        bool                    _refdist;
         bool                    _frechet_mean;
+        bool                    _centered_hpd;
         unsigned                _precision;
         unsigned                _random_number_seed;
-        unsigned                _skip;
-        string                  _tree_file_name;
-        double                  _distance_lambda;
-        double                  _scale_by;
+        vector<unsigned>        _skip;
+        vector<string>          _tree_file_names;
+        double                  _lambda;
+        vector<double>          _scale_by;
         TreeSummary::SharedPtr  _tree_summary;
 
         double                  _frechet_epsilon;
@@ -103,563 +112,612 @@ private:
         double                  _kde_sigma;
         double                  _kde_q25;
         double                  _kde_q75;
-        bool                    _test_kde;
 
         static string           _program_name;
         static unsigned         _major_version;
         static unsigned         _minor_version;
 
 #if defined(OP_SAVE_DOT_FILE)
-    static unsigned            _graph_number;
+        static unsigned            _graph_number;
 #endif
 
     };
 
-inline OP::OP() :
-    _quiet(true),
-    _output_for_gtp(false),
-    _frechet_prefix("mean-and-variance"),
-    _frechet_mean(false),
-    _precision(9),
-    _random_number_seed(1),
-    _skip(0),
-    _distance_lambda(-1.0),
-    _scale_by(1.0),
-    _tree_summary(nullptr),
-    _frechet_epsilon(0.00001),
-    _frechet_n(10),
-    _frechet_k(1000000),
-    _kde_bandwidth(0.0),
-    _kde_sigma(0.0),
-    _kde_q25(0.0),
-    _kde_q75(0.0),
-    _test_kde(false) {
-    //cout << "Constructing a SStrom" << endl;
-}
-
-inline OP::~OP() = default;
-
-inline void OP::clear() {
-    _quiet = true;
-    _output_for_gtp = false;
-    _frechet_prefix = "mean-and-variance";
-    _frechet_mean = false;
-    _tree_file_name = "";
-    _distance_lambda = -1.0;
-    _scale_by = 1.0;
-    _tree_summary   = nullptr;
-    _precision = 9;
-    _random_number_seed = 1;
-    _skip = 0;
-    //_taxon_labels.clear();
-    _frechet_epsilon = 0.00001;
-    _frechet_n = 10;
-    _frechet_k = 1000000;
-}
-
-inline void OP::processCommandLineOptions(int argc, const char * argv[]) {
-    program_options::variables_map       vm;
-    program_options::options_description desc("Allowed options");
-    desc.add_options()
-        ("help,h", "produce help message")
-        ("version,v", "show program version")
-        ("treefile,t",  program_options::value(&_tree_file_name), "name of data file in NEXUS format (required, no default)")
-        ("skip", program_options::value(&_skip), "number of trees to skip in specified treefile (default: 0)")
-        ("lambda", program_options::value(&_distance_lambda), "specify a value between 0 and 1 to calculate tree at that point (assumes starting tree is first tree and ending tree is the second tree in the treefile)")
-        ("precision", program_options::value(&_precision)->default_value(9), "number of digits precision to use in outputting distances (default: 9)")
-        ("frechet-prefix", program_options::value(&_frechet_prefix), "filename prefix for saving Frechet mean tree and variance")
-        ("frechet-e,e", program_options::value(&_frechet_epsilon), "successive Frechet mean approximations must all be this close to stop iterating (default: 0.00001)")
-        ("frechet-n,n", program_options::value(&_frechet_n), "number of successive Frechet mean approximations to use for determining whether to stop iterating (default: 10)")
-        ("frechet-k,k", program_options::value(&_frechet_k), "maximum number of Frechet mean iterations (default:1000000)")
-        ("gtptest", program_options::value(&_output_for_gtp)->default_value(false), "output treefile that can be read by Owens-Provan GTP program")
-        ("quiet,q", program_options::value(&_quiet), "suppress all output except for errors (default: yes)")
-        ("seed", program_options::value(&_random_number_seed), "pseudorandom number generator seed (used only when estimating mean tree)")
-        ("scale", program_options::value(&_scale_by), "rescale all input trees by this multiplicative factor (default: 1.0)")
-        ("testkde", program_options::value(&_test_kde), "test kernel density estimation")
-        ;
-    program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
-    try {
-        const program_options::parsed_options & parsed = program_options::parse_config_file< char >("op.conf", desc, false);
-        program_options::store(parsed, vm);
+    inline OP::OP() :
+        _quiet(true),
+        _output_for_gtp(false),
+        _prefix("outfile"),
+        _pairwise(false),
+        _refdist(false),
+        _frechet_mean(false),
+        _precision(9),
+        _random_number_seed(1),
+        _lambda(-1.0),
+        _tree_summary(nullptr),
+        _frechet_epsilon(0.00001),
+        _frechet_n(10),
+        _frechet_k(1000000),
+        _kde_bandwidth(0.0),
+        _kde_sigma(0.0),
+        _kde_q25(0.0),
+        _kde_q75(0.0) {
+        //cout << "Constructing a SStrom" << endl;
     }
-    catch(program_options::reading_file &) {
-        if (!_quiet) {
-            cout << "Note: configuration file (op.conf) not found" << endl;
+
+    inline OP::~OP() = default;
+
+    inline void OP::clear() {
+        _quiet = true;
+        _output_for_gtp = false;
+        _prefix = "outfile";
+        _pairwise = false;
+        _refdist = false;
+        _frechet_mean = false;
+        _lambda = -1.0;
+        _tree_summary   = nullptr;
+        _precision = 9;
+        _random_number_seed = 1;
+        //_taxon_labels.clear();
+        _frechet_epsilon = 0.00001;
+        _frechet_n = 10;
+        _frechet_k = 1000000;
+    }
+
+    inline void OP::processCommandLineOptions(int argc, const char * argv[]) {
+        program_options::variables_map       vm;
+        program_options::options_description desc("Allowed options");
+        desc.add_options()
+            ("help,h", "produce help message")
+            ("version,v", "show program version")
+            ("treefile,t",  program_options::value(&_tree_file_names), "name of data file in NEXUS format (required, no default)")
+            ("skip", program_options::value(&_skip), "number of trees to skip in specified treefile (default: 0)")
+            ("precision", program_options::value(&_precision)->default_value(9), "number of digits precision to use in outputting distances (default: 9)")
+            ("prefix", program_options::value(&_prefix), "filename prefix for output file name (default: 'outfile')")
+            ("lambda", program_options::value(&_lambda), "specify a value between 0 and 1 to calculate tree at that point (assumes starting tree is first tree and ending tree is the second tree in the treefile)")
+            ("pairwise", program_options::value(&_pairwise), "calculates pairwise distances (default: pairwise distances not calculated)")
+            ("refdist", program_options::value(&_refdist), "calculates distance of the first tree to all other trees (default: distances not calculated)")
+            ("frechetmean", program_options::value(&_frechet_mean), "calculate Frechet mean tree and variance (default: mean and variance not calculated)")
+            ("frechet-e,e", program_options::value(&_frechet_epsilon), "successive Frechet mean approximations must all be this close to stop iterating (default: 0.00001)")
+            ("frechet-n,n", program_options::value(&_frechet_n), "number of successive Frechet mean approximations to use for determining whether to stop iterating (default: 10)")
+            ("frechet-k,k", program_options::value(&_frechet_k), "maximum number of Frechet mean iterations (default:1000000)")
+            ("quiet,q", program_options::value(&_quiet), "suppress all output except for errors (default: yes)")
+            ("seed", program_options::value(&_random_number_seed), "pseudorandom number generator seed (used only when estimating mean tree)")
+            ("scale", program_options::value(&_scale_by), "rescale all input trees by this multiplicative factor (default: 1.0)")
+#if defined(DEBUGGING)
+            ("gtptest", program_options::value(&_output_for_gtp)->default_value(false), "output treefile that can be read by Owens-Provan GTP program")
+#endif
+            ;
+        program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
+        try {
+            const program_options::parsed_options & parsed = program_options::parse_config_file< char >("op.conf", desc, false);
+            program_options::store(parsed, vm);
         }
-    }
-    program_options::notify(vm);
-
-    // If the user specified --help on the command line, output usage summary and quit
-    if (vm.count("help") > 0) {
-        cout << desc << "\n";
-        exit(1);
-    }
-
-    // If the user specified --version on the command line, output the version and quit
-    if (vm.count("version") > 0) {
-        cout << str(format("This is %s version %d.%d") % _program_name % _major_version % _minor_version) << endl;
-        exit(0);
-    }
-
-    // If the user specified --testkde on the command line, run testKDE() and quit
-    if (vm.count("testkde") > 0) {
-        testKDE();
-        exit(0);
-    }
-
-    // If the user failed to specify --treefile on the command line, bail out because a treefile is needed for
-    // anything except help and version
-    if (vm.count("treefile") == 0) {
-        cout << "You must specify a treefile if doing anything except --help, --version, or --testkde" << endl;
-        exit(1);
-    }
-
-    // If the user specified --frechet on the command line, set _frechet_mean and _frechet_prefix
-    if (vm.count("frechet-prefix") > 0) {
-        _frechet_mean = true;
-        _frechet_prefix = vm["frechet-prefix"].as<string>();
-    }
-}
-
-inline double OP::opCalcTreeIDLength(const Split::treeid_t & splits) {
-    double length = 0.0;
-    for (auto & split : splits) {
-        length += pow(split.getEdgeLen(),2);
-    }
-    return sqrt(length);
-}
-
-inline double OP::opCalcLeafContribution(
-            const Split::treeid_t & Alvs,
-            const Split::treeid_t & Blvs,
-            vector<Split::split_pair_t> & commonPairs) const {
-    if (!_quiet) {
-        cout << "Leaves from starting tree:" << endl;
-        for (auto & a : Alvs) {
-            cout << "  " << a.createPatternRepresentation(true) << endl;
-        }
-
-        cout << "Leaves from ending tree:" << endl;
-        for (auto & b : Blvs) {
-            cout << "  " << b.createPatternRepresentation(true) << endl;
-        }
-    }
-
-    // Compute leaf contribution
-    double leaf_contribution_squared = 0.0;
-    for (auto & b : Blvs) {
-        auto it = find(Alvs.begin(), Alvs.end(), b);
-        assert(it != Alvs.end());
-        double leafa = it->getEdgeLen();
-        double leafb = b.getEdgeLen();
-        leaf_contribution_squared += pow(leafa-leafb, 2);
-        commonPairs.emplace_back(*it, b);
-    }
-
-    if (!_quiet)
-        cout << str(format("\nLeaf contribution (squared) = %.9f") % leaf_contribution_squared) << endl;
-    return leaf_contribution_squared;
-}
-
-inline double OP::opFindCommonEdges(
-            const Split::treeid_t & A,
-            const Split::treeid_t & B,
-            vector<Split::split_pair_t> & commonPairs) const {
-    // Find splits in the intersection of A and B
-    vector<Split> common_edges;
-    set_intersection(
-        A.begin(), A.end(),
-        B.begin(), B.end(),
-        back_inserter(common_edges)
-    );
-
-    double common_edge_contribution_squared = 0.0;
-    for (auto & s : common_edges) {
-        auto itA = find(A.begin(), A.end(), s);
-        double edgeA = itA->getEdgeLen();
-        auto itB = find(B.begin(), B.end(), s);
-        double edgeB = itB->getEdgeLen();
-        common_edge_contribution_squared += pow(edgeA-edgeB, 2);
-        commonPairs.emplace_back(*itA, *itB);
-    }
-
-    // Count the number of splits in B compatible with each split in A (and vice versa)
-    map<const Split *, unsigned> acompatibilities;
-    map<const Split *, unsigned> bcompatibilities;
-    for (auto & a : A) {
-        for (auto & b : B) {
-            if (a.compatibleWith(b)) {
-                acompatibilities[&a]++;
-                bcompatibilities[&b]++;
-            }
-        }
-    }
-
-    // Add splits in A that are compatible with all splits in B to common_edges
-    for (auto & apair : acompatibilities) {
-        if (apair.second == B.size()) {
-            // This split is compatible with every split in the other tree, so add it to the vector
-            // of common edges if it is not already in the vector of common edges
-            if (find(common_edges.begin(), common_edges.end(), *apair.first) == common_edges.end()) {
-                common_edges.push_back(*apair.first);
-                common_edge_contribution_squared += pow(apair.first->getEdgeLen(), 2);
-                commonPairs.emplace_back(*(apair.first), Split());
-            }
-        }
-    }
-
-    // Add splits in B that are compatible with all splits in A to common_edges
-    for (auto & bpair : bcompatibilities) {
-        if (bpair.second == A.size()) {
-            // This split is compatible with every split in the other tree, so add it to the vector
-            // of common edges if it is not already in the vector of common edges
-            if (find(common_edges.begin(), common_edges.end(), *bpair.first) == common_edges.end()) {
-                common_edges.push_back(*bpair.first);
-                common_edge_contribution_squared += pow(bpair.first->getEdgeLen(), 2);
-                commonPairs.emplace_back(Split(), *(bpair.first));
-            }
-        }
-    }
-
-    if (!_quiet) {
-        cout << "\nCommon edges:" << endl;
-        for (auto & s : common_edges) {
-            cout << "  " << s.createPatternRepresentation() << endl;
-        }
-        cout << str(format("Common edge contribution (squared) = %.9f") % common_edge_contribution_squared) << endl;
-    }
-    return common_edge_contribution_squared;
-}
-
-inline void OP::opSplitAtCommonEdges(const vector<Split> & common_edges, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
-    vector<pair<Split::treeid_t,Split::treeid_t> > out_pairs;
-    for (auto & common : common_edges) {
-        // //temporary!
-        // cout << "\ncommon: " << common.createPatternRepresentation() << endl;
-
-        // Create a mask that can be used to zero out all bits in common except the first
-        Split mask = common;
-        mask.invertBits();
-        unsigned first_common_bit = common.findFirstSetBit();
-        mask.setBitAt(first_common_bit);
-
-        // //temporary!
-        // cout << "  mask: " << mask.createPatternRepresentation() << endl;
-
-        for (auto & inpair : in_pairs) {
-            // //temporary!
-            // cout << "\n***** new tree pair *****" << endl;
-            // Separate out splits in starting (a_splits) vs. ending (b_splits) (sub)trees
-            Split::treeid_t & a_splits = inpair.first;
-            Split::treeid_t & b_splits = inpair.second;
-
-            // Create split sets to hold splits subsumed in s vs. other splits
-            Split::treeid_t a_common_splits, b_common_splits;
-            Split::treeid_t a_other_splits, b_other_splits;
-
-            // Divvy up a_splits to a_common_splits and a_other_splits
-            for (auto & asplit : a_splits) {
-                bool is_common = (asplit == common);
-                if (!is_common) {
-                    if (asplit.subsumedIn(common)) {
-                        a_common_splits.insert(asplit);
-                    }
-                    else {
-                        Split masked = asplit;
-                        masked.bitwiseAnd(mask);
-                        a_other_splits.insert(masked);
-                    }
-                }
-            }
-
-            // Divvy up b_splits to b_common_splits and b_other_splits
-            // cout << "  Divvying up b_splits:" << endl;
-            for (auto & bsplit : b_splits) {
-                // cout << "  bsplit: " << bsplit.createPatternRepresentation();
-                bool is_common = (bsplit == common);
-                if (is_common) {
-                    // cout << " (common)" << endl;
-                }
-                else {
-                    if (bsplit.subsumedIn(common)) {
-                        // cout << " (subsumed in common)" << endl;
-                        b_common_splits.insert(bsplit);
-                    }
-                    else {
-                        // cout << " (other)" << endl;
-                        Split masked = bsplit;
-                        masked.bitwiseAnd(mask);
-                        // cout << "  masked: " << masked.createPatternRepresentation() << endl;
-                        b_other_splits.insert(masked);
-                    }
-                }
-            }
-
-            // Create two new tree pairs (a_common_splits, b_common_splits) and (a_other_splits, b_other_splits)
-            out_pairs.emplace_back(a_common_splits, b_common_splits);
-            out_pairs.emplace_back(a_other_splits, b_other_splits);
-
+        catch(program_options::reading_file &) {
             if (!_quiet) {
-                cout << "\nSplitting trees at common split: " << common.createPatternRepresentation() << endl;
-                cout << "  Left subtree above common split:" << endl;
-                for (auto & asplit : a_common_splits) {
-                    cout << "    " << asplit.createPatternRepresentation() << endl;
-                }
-                cout << "  Right subtree above common split:" << endl;
-                for (auto & bsplit : b_common_splits) {
-                    cout << "    " << bsplit.createPatternRepresentation() << endl;
-                }
-                cout << "  Left subtree below common split:" << endl;
-                for (auto & asplit : a_other_splits) {
-                    cout << "    " << asplit.createPatternRepresentation() << endl;
-                }
-                cout << "  Right subtree below common split:" << endl;
-                for (auto & bsplit : b_other_splits) {
-                    cout << "    " << bsplit.createPatternRepresentation() << endl;
+                cout << "Note: configuration file (op.conf) not found" << endl;
+            }
+        }
+        program_options::notify(vm);
+
+        // If the user specified --help on the command line, output usage summary and quit
+        if (vm.count("help") > 0) {
+            cout << desc << "\n";
+            exit(1);
+        }
+
+        // If the user specified --version on the command line, output the version and quit
+        if (vm.count("version") > 0) {
+            cout << str(format("This is %s version %d.%d") % _program_name % _major_version % _minor_version) << endl;
+            exit(0);
+        }
+
+        // If the user specified --testkde on the command line, run testKDE() and quit
+        if (vm.count("testkde") > 0) {
+            testKDE();
+            exit(0);
+        }
+
+        // If the user failed to specify --treefile on the command line, bail out because a treefile is needed for
+        // anything except help and version
+        if (vm.count("treefile") == 0) {
+            cout << "You must specify a treefile if doing anything except --help, --version, or --testkde" << endl;
+            exit(1);
+        }
+
+        // If the user specified --prefix on the command line, set _prefix
+        if (vm.count("prefix") > 0) {
+            _prefix = vm["prefix"].as<string>();
+        }
+
+        // If the user specified --frechet on the command line, set _frechet_mean to true
+        if (vm.count("frechet") > 0) {
+            _frechet_mean = true;
+        }
+
+        // If the user specified --pairwise on the command line, set _pairwise to true
+        if (vm.count("pairwise") > 0) {
+            _pairwise = true;
+        }
+
+        // If the user specified --refdist on the command line, set _refdist to true
+        if (vm.count("refdist") > 0) {
+            _refdist = true;
+        }
+
+        // Sanity check
+        bool ok = ( _pairwise && !_frechet_mean && !_refdist);
+        ok     |= (!_pairwise &&  _frechet_mean && !_refdist);
+        ok     |= (!_pairwise && !_frechet_mean &&  _refdist);
+        ok     |= (!_pairwise && !_frechet_mean && !_refdist && _lambda > 0.0 && _lambda < 1.0);
+
+        if (!ok) {
+            cerr << "Sorry, you can only do one of these things during a single run: " << endl;
+            cerr << "(1) calculate pairwise distances (pairwise); " << endl;
+            cerr << "(2) calculate distance from first tree to all other trees (refdist);" << endl;
+            cerr << "(3) calculate frechet mean and variance (frechet); or" << endl;
+            cerr << "(4) move along path a specified distance (lambda)" << endl;
+            cerr << "You specified: " << endl;
+            cerr << "  pairwise = " << (_pairwise ? "yes" : "no") << endl;
+            cerr << "  frechet  = " << (_frechet_mean ? "yes" : "no") << endl;
+            cerr << "  refdist  = " << (_refdist ? "yes" : "no") << endl;
+            cerr << "  lambda   = " << _lambda << endl;
+            throw Xop("Program aborted.");
+        }
+
+        if (_skip.empty()) {
+            _skip.resize(_tree_file_names.size(), 0);
+        }
+        else if (_skip.size() != _tree_file_names.size()) {
+            throw Xop("If specified, a skip setting must be provided for every treefile");
+        }
+
+        if (_scale_by.empty()) {
+            _scale_by.resize(_tree_file_names.size(), 1.0);
+        }
+        else if (_scale_by.size() != _tree_file_names.size()) {
+            throw Xop("If specified, a scale setting must be provided for every treefile");
+        }
+    }
+
+    inline double OP::opCalcTreeIDLength(const Split::treeid_t & splits) {
+        double length = 0.0;
+        for (auto & split : splits) {
+            length += pow(split.getEdgeLen(),2);
+        }
+        return sqrt(length);
+    }
+
+    inline double OP::opCalcLeafContribution(
+                const Split::treeid_t & Alvs,
+                const Split::treeid_t & Blvs,
+                vector<Split::split_pair_t> & commonPairs) const {
+        if (!_quiet) {
+            cout << "Leaves from starting tree:" << endl;
+            for (auto & a : Alvs) {
+                cout << "  " << a.createPatternRepresentation(true) << endl;
+            }
+
+            cout << "Leaves from ending tree:" << endl;
+            for (auto & b : Blvs) {
+                cout << "  " << b.createPatternRepresentation(true) << endl;
+            }
+        }
+
+        // Compute leaf contribution
+        double leaf_contribution_squared = 0.0;
+        for (auto & b : Blvs) {
+            auto it = find(Alvs.begin(), Alvs.end(), b);
+            assert(it != Alvs.end());
+            double leafa = it->getEdgeLen();
+            double leafb = b.getEdgeLen();
+            leaf_contribution_squared += pow(leafa-leafb, 2);
+            commonPairs.emplace_back(*it, b);
+        }
+
+        if (!_quiet)
+            cout << str(format("\nLeaf contribution (squared) = %.9f") % leaf_contribution_squared) << endl;
+        return leaf_contribution_squared;
+    }
+
+    inline double OP::opFindCommonEdges(
+                const Split::treeid_t & A,
+                const Split::treeid_t & B,
+                vector<Split::split_pair_t> & commonPairs) const {
+        // Find splits in the intersection of A and B
+        vector<Split> common_edges;
+        set_intersection(
+            A.begin(), A.end(),
+            B.begin(), B.end(),
+            back_inserter(common_edges)
+        );
+
+        double common_edge_contribution_squared = 0.0;
+        for (auto & s : common_edges) {
+            auto itA = find(A.begin(), A.end(), s);
+            double edgeA = itA->getEdgeLen();
+            auto itB = find(B.begin(), B.end(), s);
+            double edgeB = itB->getEdgeLen();
+            common_edge_contribution_squared += pow(edgeA-edgeB, 2);
+            commonPairs.emplace_back(*itA, *itB);
+        }
+
+        // Count the number of splits in B compatible with each split in A (and vice versa)
+        map<const Split *, unsigned> acompatibilities;
+        map<const Split *, unsigned> bcompatibilities;
+        for (auto & a : A) {
+            for (auto & b : B) {
+                if (a.compatibleWith(b)) {
+                    acompatibilities[&a]++;
+                    bcompatibilities[&b]++;
                 }
             }
         }
 
-        // Swap in_pairs and out_pairs
-        in_pairs.swap(out_pairs);
-        out_pairs.clear();
+        // Add splits in A that are compatible with all splits in B to common_edges
+        for (auto & apair : acompatibilities) {
+            if (apair.second == B.size()) {
+                // This split is compatible with every split in the other tree, so add it to the vector
+                // of common edges if it is not already in the vector of common edges
+                if (find(common_edges.begin(), common_edges.end(), *apair.first) == common_edges.end()) {
+                    common_edges.push_back(*apair.first);
+                    common_edge_contribution_squared += pow(apair.first->getEdgeLen(), 2);
+                    commonPairs.emplace_back(*(apair.first), Split());
+                }
+            }
+        }
+
+        // Add splits in B that are compatible with all splits in A to common_edges
+        for (auto & bpair : bcompatibilities) {
+            if (bpair.second == A.size()) {
+                // This split is compatible with every split in the other tree, so add it to the vector
+                // of common edges if it is not already in the vector of common edges
+                if (find(common_edges.begin(), common_edges.end(), *bpair.first) == common_edges.end()) {
+                    common_edges.push_back(*bpair.first);
+                    common_edge_contribution_squared += pow(bpair.first->getEdgeLen(), 2);
+                    commonPairs.emplace_back(Split(), *(bpair.first));
+                }
+            }
+        }
+
+        if (!_quiet) {
+            cout << "\nCommon edges:" << endl;
+            for (auto & s : common_edges) {
+                cout << "  " << s.createPatternRepresentation() << endl;
+            }
+            cout << str(format("Common edge contribution (squared) = %.9f") % common_edge_contribution_squared) << endl;
+        }
+        return common_edge_contribution_squared;
     }
-}
+
+    inline void OP::opSplitAtCommonEdges(const vector<Split> & common_edges, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
+        vector<pair<Split::treeid_t,Split::treeid_t> > out_pairs;
+        for (auto & common : common_edges) {
+            // //temporary!
+            // cout << "\ncommon: " << common.createPatternRepresentation() << endl;
+
+            // Create a mask that can be used to zero out all bits in common except the first
+            Split mask = common;
+            mask.invertBits();
+            unsigned first_common_bit = common.findFirstSetBit();
+            mask.setBitAt(first_common_bit);
+
+            // //temporary!
+            // cout << "  mask: " << mask.createPatternRepresentation() << endl;
+
+            for (auto & inpair : in_pairs) {
+                // //temporary!
+                // cout << "\n***** new tree pair *****" << endl;
+                // Separate out splits in starting (a_splits) vs. ending (b_splits) (sub)trees
+                Split::treeid_t & a_splits = inpair.first;
+                Split::treeid_t & b_splits = inpair.second;
+
+                // Create split sets to hold splits subsumed in s vs. other splits
+                Split::treeid_t a_common_splits, b_common_splits;
+                Split::treeid_t a_other_splits, b_other_splits;
+
+                // Divvy up a_splits to a_common_splits and a_other_splits
+                for (auto & asplit : a_splits) {
+                    bool is_common = (asplit == common);
+                    if (!is_common) {
+                        if (asplit.subsumedIn(common)) {
+                            a_common_splits.insert(asplit);
+                        }
+                        else {
+                            Split masked = asplit;
+                            masked.bitwiseAnd(mask);
+                            a_other_splits.insert(masked);
+                        }
+                    }
+                }
+
+                // Divvy up b_splits to b_common_splits and b_other_splits
+                // cout << "  Divvying up b_splits:" << endl;
+                for (auto & bsplit : b_splits) {
+                    // cout << "  bsplit: " << bsplit.createPatternRepresentation();
+                    bool is_common = (bsplit == common);
+                    if (is_common) {
+                        // cout << " (common)" << endl;
+                    }
+                    else {
+                        if (bsplit.subsumedIn(common)) {
+                            // cout << " (subsumed in common)" << endl;
+                            b_common_splits.insert(bsplit);
+                        }
+                        else {
+                            // cout << " (other)" << endl;
+                            Split masked = bsplit;
+                            masked.bitwiseAnd(mask);
+                            // cout << "  masked: " << masked.createPatternRepresentation() << endl;
+                            b_other_splits.insert(masked);
+                        }
+                    }
+                }
+
+                // Create two new tree pairs (a_common_splits, b_common_splits) and (a_other_splits, b_other_splits)
+                out_pairs.emplace_back(a_common_splits, b_common_splits);
+                out_pairs.emplace_back(a_other_splits, b_other_splits);
+
+                if (!_quiet) {
+                    cout << "\nSplitting trees at common split: " << common.createPatternRepresentation() << endl;
+                    cout << "  Left subtree above common split:" << endl;
+                    for (auto & asplit : a_common_splits) {
+                        cout << "    " << asplit.createPatternRepresentation() << endl;
+                    }
+                    cout << "  Right subtree above common split:" << endl;
+                    for (auto & bsplit : b_common_splits) {
+                        cout << "    " << bsplit.createPatternRepresentation() << endl;
+                    }
+                    cout << "  Left subtree below common split:" << endl;
+                    for (auto & asplit : a_other_splits) {
+                        cout << "    " << asplit.createPatternRepresentation() << endl;
+                    }
+                    cout << "  Right subtree below common split:" << endl;
+                    for (auto & bsplit : b_other_splits) {
+                        cout << "    " << bsplit.createPatternRepresentation() << endl;
+                    }
+                }
+            }
+
+            // Swap in_pairs and out_pairs
+            in_pairs.swap(out_pairs);
+            out_pairs.clear();
+        }
+    }
 
 #if defined(OP_SAVE_DOT_FILE)
-inline string OP::opCreateVertexLabel(string name, string capacity, string edgelen, string bipartition) {
-    string s = "";
-    s += "<<table bgcolor=\"white\" border=\"0\">";
-    s += "<tr><td><b><font color=\"blue\" face=\"Courier\" point-size=\"16\">%s</font></b></td></tr>";
-    s += "<tr><td><b><font color=\"blue\" face=\"Courier\" point-size=\"16\">%s</font></b></td></tr>";
-    s += "<tr><td><font color=\"black\" face=\"Courier\" point-size=\"10\">%s</font></td></tr>";
-    s += "<tr><td><font color=\"black\" face=\"Courier\" point-size=\"10\">%s</font></td></tr>";
-    s += "</table>>";
-    return str(format(s) % name % capacity % bipartition % edgelen);
-}
+    inline string OP::opCreateVertexLabel(string name, string capacity, string edgelen, string bipartition) {
+        string s = "";
+        s += "<<table bgcolor=\"white\" border=\"0\">";
+        s += "<tr><td><b><font color=\"blue\" face=\"Courier\" point-size=\"16\">%s</font></b></td></tr>";
+        s += "<tr><td><b><font color=\"blue\" face=\"Courier\" point-size=\"16\">%s</font></b></td></tr>";
+        s += "<tr><td><font color=\"black\" face=\"Courier\" point-size=\"10\">%s</font></td></tr>";
+        s += "<tr><td><font color=\"black\" face=\"Courier\" point-size=\"10\">%s</font></td></tr>";
+        s += "</table>>";
+        return str(format(s) % name % capacity % bipartition % edgelen);
+    }
 
-inline string OP::opCreateEdgeLabel(double capacity, double reverse_flow) {
-    string s = "";
-    s += "\tlabeldistance=8\n";
-    s += "\tlabelangle=0\n";
+    inline string OP::opCreateEdgeLabel(double capacity, double reverse_flow) {
+        string s = "";
+        s += "\tlabeldistance=8\n";
+        s += "\tlabelangle=0\n";
 #if 1
-    s += "\theadlabel=<<font color=\"red\" face=\"Verdana\" point-size=\"12\">%.3f</font>>\n";
+        s += "\theadlabel=<<font color=\"red\" face=\"Verdana\" point-size=\"12\">%.3f</font>>\n";
 #else
-    s += "\theadlabel=<\n";
-    s += "\t\t<table bgcolor=\"white\" border=\"0\">\n";
-    s += "\t\t\t<tr>\n";
-    s += "\t\t\t\t<td>\n";
-    s += "\t\t\t\t\t<font color=\"blue\" face=\"Courier\" point-size=\"10\">%.3f</font>\n";
-    s += "\t\t\t\t</td>\n";
-    s += "\t\t\t</tr>\n";
-    s += "\t\t\t<tr>\n";
-    s += "\t\t\t\t<td>\n";
-    s += "\t\t\t\t\t<font color=\"red\" face=\"Courier\" point-size=\"10\">%.3f</font>\n";
-    s += "\t\t\t\t</td>\n";
-    s += "\t\t\t</tr>\n";
-    s += "\t\t</table>\n";
-    s += "\t>\n";
+        s += "\theadlabel=<\n";
+        s += "\t\t<table bgcolor=\"white\" border=\"0\">\n";
+        s += "\t\t\t<tr>\n";
+        s += "\t\t\t\t<td>\n";
+        s += "\t\t\t\t\t<font color=\"blue\" face=\"Courier\" point-size=\"10\">%.3f</font>\n";
+        s += "\t\t\t\t</td>\n";
+        s += "\t\t\t</tr>\n";
+        s += "\t\t\t<tr>\n";
+        s += "\t\t\t\t<td>\n";
+        s += "\t\t\t\t\t<font color=\"red\" face=\"Courier\" point-size=\"10\">%.3f</font>\n";
+        s += "\t\t\t\t</td>\n";
+        s += "\t\t\t</tr>\n";
+        s += "\t\t</table>\n";
+        s += "\t>\n";
 #endif
-    return str(format(s) % reverse_flow);
-}
-
-inline void OP::opSaveIncompatibilityGraph(OPVertex & source, OPVertex & sink, vector<OPVertex> & avect, vector<OPVertex> & bvect) {
-    // Example of the kind of dot file generated by this function:
-    // digraph G {
-    //     rankdir=LR;
-    //     graph [ranksep=2];
-    //
-    //     subgraph A_vertices {
-    //         label="A";
-    //             {
-    //             rank=same;
-    //             a1 [label = "0.349\na1\n----**-", shape = box, color = black];
-    //             a2 [label = "0.100\na2\n--*-**-", shape = box, color = black];
-    //             a3 [label = "0.240\na3\n-**-**-", shape = box, color = black];
-    //             }
-    //         a1 -> a2 [dir=none, style=invisible];
-    //         a2 -> a3 [dir=none, style=invisible];
-    //     }
-    //
-    //     subgraph B_vertices {
-    //         label="B";
-    //             {
-    //             rank=same;
-    //             b1 [label = "0.016\nb1\n--*-*--", shape = box, color = black];
-    //             b2 [label = "0.524\nb2\n-**-*--", shape = box, color = black];
-    //             b3 [label = "0.122\nb3\n-----**", shape = box, color = black];
-    //             b4 [label = "0.339\nb4\n-**-***", shape = box, color = black];
-    //             }
-    //         b1 -> b2 [dir=none, style=invisible];
-    //         b2 -> b3 [dir=none, style=invisible];
-    //         b3 -> b4 [dir=none, style=invisible];
-    //     }
-    //
-    //     a1 -> b1;
-    //     a1 -> b2;
-    //     a1 -> b3;
-    //     a2 -> b2;
-    //     a2 -> b3;
-    //     a3 -> b3;
-    //     a3 -> b4;
-    // }
-    //
-    //
-
-    auto asize = static_cast<unsigned>(avect.size());
-    auto bsize = static_cast<unsigned>(bvect.size());
-    unsigned minsize = min(asize, bsize);
-    unsigned maxsize = max(asize, bsize);
-
-    // Save all the entities needed
-    // tuple key: <0> name, <1>capacity, <2>edgelen, <3>split, <4>shape, <5>color
-    typedef std::tuple<string, string, string, string, string, string> gnode_element_t;
-    typedef vector<gnode_element_t> gnode_t;
-
-    // Save everything needed for the A nodes
-    gnode_t anodes;
-    for (unsigned i = 0; i < source._edges.size(); i++) {
-        OPEdge * edge   = source._edges[i];
-        string name     = edge->_to->_name;
-        string capacity = (edge->_capacity == 0.0 ? "0" : str(format("%.3f") % edge->_capacity));
-        string edgelen  = str(format("%.3f") % edge->_to->_split->getEdgeLen());
-        string split    = str(format("%.3f") % edge->_to->_split->createPatternRepresentation(false));
-        string shape    = (edge->_capacity == 0.0 ? "circle" : "box");
-        string color    = (edge->_capacity == 0.0 ? "red" : "black");
-        anodes.emplace_back(name, capacity, edgelen, split, shape, color);
+        return str(format(s) % reverse_flow);
     }
-    if (asize < maxsize) {
-        for (unsigned i = asize; i < maxsize; i++) {
-            anodes.emplace_back(str(format("adummy%d") % (i+1)), "0", "0", "0", "box", "black");
+
+    inline void OP::opSaveIncompatibilityGraph(OPVertex & source, OPVertex & sink, vector<OPVertex> & avect, vector<OPVertex> & bvect) {
+        // Example of the kind of dot file generated by this function:
+        // digraph G {
+        //     rankdir=LR;
+        //     graph [ranksep=2];
+        //
+        //     subgraph A_vertices {
+        //         label="A";
+        //             {
+        //             rank=same;
+        //             a1 [label = "0.349\na1\n----**-", shape = box, color = black];
+        //             a2 [label = "0.100\na2\n--*-**-", shape = box, color = black];
+        //             a3 [label = "0.240\na3\n-**-**-", shape = box, color = black];
+        //             }
+        //         a1 -> a2 [dir=none, style=invisible];
+        //         a2 -> a3 [dir=none, style=invisible];
+        //     }
+        //
+        //     subgraph B_vertices {
+        //         label="B";
+        //             {
+        //             rank=same;
+        //             b1 [label = "0.016\nb1\n--*-*--", shape = box, color = black];
+        //             b2 [label = "0.524\nb2\n-**-*--", shape = box, color = black];
+        //             b3 [label = "0.122\nb3\n-----**", shape = box, color = black];
+        //             b4 [label = "0.339\nb4\n-**-***", shape = box, color = black];
+        //             }
+        //         b1 -> b2 [dir=none, style=invisible];
+        //         b2 -> b3 [dir=none, style=invisible];
+        //         b3 -> b4 [dir=none, style=invisible];
+        //     }
+        //
+        //     a1 -> b1;
+        //     a1 -> b2;
+        //     a1 -> b3;
+        //     a2 -> b2;
+        //     a2 -> b3;
+        //     a3 -> b3;
+        //     a3 -> b4;
+        // }
+        //
+        //
+
+        auto asize = static_cast<unsigned>(avect.size());
+        auto bsize = static_cast<unsigned>(bvect.size());
+        unsigned minsize = min(asize, bsize);
+        unsigned maxsize = max(asize, bsize);
+
+        // Save all the entities needed
+        // tuple key: <0> name, <1>capacity, <2>edgelen, <3>split, <4>shape, <5>color
+        typedef std::tuple<string, string, string, string, string, string> gnode_element_t;
+        typedef vector<gnode_element_t> gnode_t;
+
+        // Save everything needed for the A nodes
+        gnode_t anodes;
+        for (unsigned i = 0; i < source._edges.size(); i++) {
+            OPEdge * edge   = source._edges[i];
+            string name     = edge->_to->_name;
+            string capacity = (edge->_capacity == 0.0 ? "0" : str(format("%.3f") % edge->_capacity));
+            string edgelen  = str(format("%.3f") % edge->_to->_split->getEdgeLen());
+            string split    = str(format("%.3f") % edge->_to->_split->createPatternRepresentation(false));
+            string shape    = (edge->_capacity == 0.0 ? "circle" : "box");
+            string color    = (edge->_capacity == 0.0 ? "red" : "black");
+            anodes.emplace_back(name, capacity, edgelen, split, shape, color);
         }
-    }
-
-    // Save everything needed for the B nodes
-    gnode_t bnodes;
-    for (unsigned i = 0; i < bsize; i++) {
-        assert(bvect[i]._edges.size() == 1);
-        OPEdge * edge   = bvect[i]._edges[0];
-        string name     = edge->_from->_name;
-        string capacity = (edge->_capacity == 0.0 ? "0" : str(format("%.3f") % edge->_capacity));
-        string edgelen  = str(format("%.3f") % bvect[i]._split->getEdgeLen());
-        string split    = str(format("%.3f") % bvect[i]._split->createPatternRepresentation(false));
-        string shape    = (edge->_capacity == 0.0 ? "circle" : "box");
-        string color    = (edge->_capacity == 0.0 ? "red" : "black");
-        bnodes.emplace_back(name, capacity, edgelen, split, shape, color);
-    }
-    if (bsize < maxsize) {
-        for (unsigned i = bsize; i < maxsize; i++) {
-            bnodes.emplace_back(str(format("bdummy%d") % (i+1)), "0", "0", "0", "box", "black");
+        if (asize < maxsize) {
+            for (unsigned i = asize; i < maxsize; i++) {
+                anodes.emplace_back(str(format("adummy%d") % (i+1)), "0", "0", "0", "box", "black");
+            }
         }
-    }
 
-    // Create (or append to) a rundot.sh file containing commands to compile all the incompatibility graphs
-    if (OP::_graph_number == 1) {
-        ofstream shf("rundot.sh");
-        shf << "#!/bin/bash\n\n";
-        shf << "# This file requires previous installation of dot and is intended\n";
-        shf << "# to be run on a Mac (because of the use of the open command)\n\n";
-        shf << "dot -Tpng graph-1.dot > graph-1.png; open graph-1.png\n";
-        shf.close();
-    }
-    else {
-        ofstream shf("rundot.sh", ios::out | ios::app);
-        shf << str(format("dot -Tpng graph-%d.dot > graph-%d.png; open graph-%d.png\n")
-            % OP::_graph_number
-            % OP::_graph_number
-            % OP::_graph_number);
-        shf.close();
-    }
+        // Save everything needed for the B nodes
+        gnode_t bnodes;
+        for (unsigned i = 0; i < bsize; i++) {
+            assert(bvect[i]._edges.size() == 1);
+            OPEdge * edge   = bvect[i]._edges[0];
+            string name     = edge->_from->_name;
+            string capacity = (edge->_capacity == 0.0 ? "0" : str(format("%.3f") % edge->_capacity));
+            string edgelen  = str(format("%.3f") % bvect[i]._split->getEdgeLen());
+            string split    = str(format("%.3f") % bvect[i]._split->createPatternRepresentation(false));
+            string shape    = (edge->_capacity == 0.0 ? "circle" : "box");
+            string color    = (edge->_capacity == 0.0 ? "red" : "black");
+            bnodes.emplace_back(name, capacity, edgelen, split, shape, color);
+        }
+        if (bsize < maxsize) {
+            for (unsigned i = bsize; i < maxsize; i++) {
+                bnodes.emplace_back(str(format("bdummy%d") % (i+1)), "0", "0", "0", "box", "black");
+            }
+        }
 
-    // Open the dot file
-    cout << "Saving incompatibility graph to file: " << str(format("graph-%d.dot") % OP::_graph_number) << endl;
-    ofstream dotf(str(format("graph-%d.dot") % OP::_graph_number++));
-
-    // Create the opening preamble
-    dotf << "digraph G {\n";
-    dotf << "\trankdir=LR;\n";
-    dotf << "\tgraph [ranksep=2];\n\n";
-
-    // Create a subgraph containing only the A vertices in a vertical rank
-    dotf << "\tsubgraph Avertices {\n";
-    dotf << "\t    label=\"A\";\n";
-    dotf << "\t    {\n";
-    dotf << "\t        rank=same;\n";
-    for (unsigned i = 0; i < maxsize; i++) {
-        if (i < asize) {
-            // tuple key: <0> name, <1>capacity, <2>edgelen, <3>split, <4>shape, <5>color
-
-            dotf << str(format("\t        %s [label = %s, shape = %s, color = %s];\n")
-                % get<0>(anodes[i])
-                % opCreateVertexLabel(get<0>(anodes[i]), get<1>(anodes[i]), get<2>(anodes[i]), get<3>(anodes[i]))
-                % get<4>(anodes[i])
-                % get<5>(anodes[i])
-            );
+        // Create (or append to) a rundot.sh file containing commands to compile all the incompatibility graphs
+        if (OP::_graph_number == 1) {
+            ofstream shf("rundot.sh");
+            shf << "#!/bin/bash\n\n";
+            shf << "# This file requires previous installation of dot and is intended\n";
+            shf << "# to be run on a Mac (because of the use of the open command)\n\n";
+            shf << "dot -Tpng graph-1.dot > graph-1.png; open graph-1.png\n";
+            shf.close();
         }
         else {
-            dotf << str(format("\t        %s [style = invisible];\n")
-                % get<0>(anodes[i])
+            ofstream shf("rundot.sh", ios::out | ios::app);
+            shf << str(format("dot -Tpng graph-%d.dot > graph-%d.png; open graph-%d.png\n")
+                % OP::_graph_number
+                % OP::_graph_number
+                % OP::_graph_number);
+            shf.close();
+        }
+
+        // Open the dot file
+        cout << "Saving incompatibility graph to file: " << str(format("graph-%d.dot") % OP::_graph_number) << endl;
+        ofstream dotf(str(format("graph-%d.dot") % OP::_graph_number++));
+
+        // Create the opening preamble
+        dotf << "digraph G {\n";
+        dotf << "\trankdir=LR;\n";
+        dotf << "\tgraph [ranksep=2];\n\n";
+
+        // Create a subgraph containing only the A vertices in a vertical rank
+        dotf << "\tsubgraph Avertices {\n";
+        dotf << "\t    label=\"A\";\n";
+        dotf << "\t    {\n";
+        dotf << "\t        rank=same;\n";
+        for (unsigned i = 0; i < maxsize; i++) {
+            if (i < asize) {
+                // tuple key: <0> name, <1>capacity, <2>edgelen, <3>split, <4>shape, <5>color
+
+                dotf << str(format("\t        %s [label = %s, shape = %s, color = %s];\n")
+                    % get<0>(anodes[i])
+                    % opCreateVertexLabel(get<0>(anodes[i]), get<1>(anodes[i]), get<2>(anodes[i]), get<3>(anodes[i]))
+                    % get<4>(anodes[i])
+                    % get<5>(anodes[i])
+                );
+            }
+            else {
+                dotf << str(format("\t        %s [style = invisible];\n")
+                    % get<0>(anodes[i])
+                );
+            }
+        }
+        dotf << "\t    }\n";
+        for (unsigned i = 0; i < maxsize - 1; i++) {
+            dotf << str(format("\t    %s -> %s [dir=none, style=invisible];\n")
+                    % get<0>(anodes[i])
+                    % get<0>(anodes[i+1])
             );
         }
-    }
-    dotf << "\t    }\n";
-    for (unsigned i = 0; i < maxsize - 1; i++) {
-        dotf << str(format("\t    %s -> %s [dir=none, style=invisible];\n")
-                % get<0>(anodes[i])
-                % get<0>(anodes[i+1])
-        );
-    }
-    dotf << "\t}\n";
+        dotf << "\t}\n";
 
-    // Create a subgraph containing only the B vertices in a vertical rank
-    dotf << "\tsubgraph Bvertices {\n";
-    dotf << "\t    label=\"B\";\n";
-    dotf << "\t    {\n";
-    dotf << "\t        rank=same;\n";
-    for (unsigned i = 0; i < maxsize; i++) {
-        if (i < bsize) {
-            dotf << str(format("\t        %s [label = %s, shape = %s, color = %s];\n")
-                % get<0>(bnodes[i])
-                % opCreateVertexLabel(get<0>(bnodes[i]), get<1>(bnodes[i]), get<2>(bnodes[i]), get<3>(bnodes[i]))
-                % get<4>(bnodes[i])
-                % get<5>(bnodes[i])
+        // Create a subgraph containing only the B vertices in a vertical rank
+        dotf << "\tsubgraph Bvertices {\n";
+        dotf << "\t    label=\"B\";\n";
+        dotf << "\t    {\n";
+        dotf << "\t        rank=same;\n";
+        for (unsigned i = 0; i < maxsize; i++) {
+            if (i < bsize) {
+                dotf << str(format("\t        %s [label = %s, shape = %s, color = %s];\n")
+                    % get<0>(bnodes[i])
+                    % opCreateVertexLabel(get<0>(bnodes[i]), get<1>(bnodes[i]), get<2>(bnodes[i]), get<3>(bnodes[i]))
+                    % get<4>(bnodes[i])
+                    % get<5>(bnodes[i])
+                );
+            }
+            else {
+                dotf << str(format("\t        %s [style = invisible];\n")
+                    % get<0>(bnodes[i])
+                );
+            }
+        }
+        dotf << "\t    }\n";
+        for (unsigned i = 0; i < maxsize - 1; i++) {
+            dotf << str(format("\t    %s -> %s [dir=none, style=invisible];\n")
+                    % get<0>(bnodes[i])
+                    % get<0>(bnodes[i+1])
             );
         }
-        else {
-            dotf << str(format("\t        %s [style = invisible];\n")
-                % get<0>(bnodes[i])
-            );
+        if (bsize < maxsize) {
+            dotf << str(format("\t    %s -> bdummy%d [dir=none, style=invisible];\n")
+                % get<0>(anodes[bsize-1])
+                % (bsize+1));
+            for (unsigned i = bsize; i < maxsize - 1; i++) {
+                dotf << str(format("\t    bdummy%d -> bdummy%d [dir=none, style=invisible];\n") % (i+1) % (i+2));
+            }
         }
-    }
-    dotf << "\t    }\n";
-    for (unsigned i = 0; i < maxsize - 1; i++) {
-        dotf << str(format("\t    %s -> %s [dir=none, style=invisible];\n")
-                % get<0>(bnodes[i])
-                % get<0>(bnodes[i+1])
-        );
-    }
-    if (bsize < maxsize) {
-        dotf << str(format("\t    %s -> bdummy%d [dir=none, style=invisible];\n")
-            % get<0>(anodes[bsize-1])
-            % (bsize+1));
-        for (unsigned i = bsize; i < maxsize - 1; i++) {
-            dotf << str(format("\t    bdummy%d -> bdummy%d [dir=none, style=invisible];\n") % (i+1) % (i+2));
-        }
-    }
-    dotf << "\t}\n";
+        dotf << "\t}\n";
 
-    // Create the edges connecting A with B vertices
-    for (unsigned i = 0; i < asize; ++i) {
-        for (unsigned j = 0; j < avect[i]._edges.size(); ++j) {
-            OPEdge * edge = avect[i]._edges[j];
-            dotf << str(format("\t\t%s -> %s [%s];\n") % edge->_from->_name % edge->_to->_name % opCreateEdgeLabel(edge->_capacity, edge->_reverse_flow));
+        // Create the edges connecting A with B vertices
+        for (unsigned i = 0; i < asize; ++i) {
+            for (unsigned j = 0; j < avect[i]._edges.size(); ++j) {
+                OPEdge * edge = avect[i]._edges[j];
+                dotf << str(format("\t\t%s -> %s [%s];\n") % edge->_from->_name % edge->_to->_name % opCreateEdgeLabel(edge->_capacity, edge->_reverse_flow));
+            }
         }
-    }
 
-    // dotf << "\t}\n";
-    dotf << "}\n";
-    dotf.close();
-}
+        // dotf << "\t}\n";
+        dotf << "}\n";
+        dotf.close();
+    }
 #endif
 
 #if 1
@@ -674,7 +732,7 @@ inline void OP::opSaveIncompatibilityGraph(OPVertex & source, OPVertex & sink, v
             Split::treeid_t & D2,
             bool quiet) {
 #if defined(OP_SAVE_DOT_FILE)
-    opSaveIncompatibilityGraph(source, sink, avect, bvect);
+        opSaveIncompatibilityGraph(source, sink, avect, bvect);
 #endif
 
         double cumulative_flow = 0.0;
@@ -844,1224 +902,1420 @@ inline void OP::opSaveIncompatibilityGraph(OPVertex & source, OPVertex & sink, v
                 }
             }
 #if defined(OP_SAVE_DOT_FILE)
-        opSaveIncompatibilityGraph(source, sink, avect, bvect);
+            opSaveIncompatibilityGraph(source, sink, avect, bvect);
 #endif
         }   // while (!done_augmenting_path)
 
-    // Identify C1, C2, D1, and D2
-    // C1 and D2 compose the min weight vertex cover
-    // C2 and D` compose the independent set
-    for (auto & source_edge : source._edges) {
-        OPVertex * avertex = source_edge->_to;
-        if (source_edge->_capacity > 0.0 || avertex->_residual_capacity > 0.0) {
-            // Because this source edge has remaining capacity, its distal vertex is part of the independent set
-            C2.insert(*(avertex->_split));
+        // Identify C1, C2, D1, and D2
+        // C1 and D2 compose the min weight vertex cover
+        // C2 and D` compose the independent set
+        for (auto & source_edge : source._edges) {
+            OPVertex * avertex = source_edge->_to;
+            if (source_edge->_capacity > 0.0 || avertex->_residual_capacity > 0.0) {
+                // Because this source edge has remaining capacity, its distal vertex is part of the independent set
+                C2.insert(*(avertex->_split));
 
-            // This A vertex allows access to the B side, so any connected B vertices with
-            // zero capacity are part of the vertex cover
-            for (const auto central_edge : avertex->_edges) {
-                OPVertex * bvertex = central_edge->_to;
-                assert(bvertex->_edges.size() == 1);
-                OPEdge * sink_edge = bvertex->_edges[0];
-                if (sink_edge->_capacity == 0.0) {
-                    D2.insert(*(bvertex->_split));
+                // This A vertex allows access to the B side, so any connected B vertices with
+                // zero capacity are part of the vertex cover
+                for (const auto central_edge : avertex->_edges) {
+                    OPVertex * bvertex = central_edge->_to;
+                    assert(bvertex->_edges.size() == 1);
+                    OPEdge * sink_edge = bvertex->_edges[0];
+                    if (sink_edge->_capacity == 0.0) {
+                        D2.insert(*(bvertex->_split));
+                    }
                 }
             }
-        }
-        else {
-            // Because this A-vertex has zero capacity, it is part of the vertex cover
-            C1.insert(*(avertex->_split));
+            else {
+                // Because this A-vertex has zero capacity, it is part of the vertex cover
+                C1.insert(*(avertex->_split));
 
-            // No need to consider connected B vertices because this A-vertex already
-            // covers all connected edges
+                // No need to consider connected B vertices because this A-vertex already
+                // covers all connected edges
+            }
+        }
+
+        // D1 includes every split not in D2
+        D1.clear();
+        for (auto & b : bvect) {
+            if (D2.count(*(b._split)) == 0) {
+                D1.insert(*(b._split));
+            }
         }
     }
-
-    // D1 includes every split not in D2
-    D1.clear();
-    for (auto & b : bvect) {
-        if (D2.count(*(b._split)) == 0) {
-            D1.insert(*(b._split));
-        }
-    }
-}
 #else
-inline void OP::opEdmondsKarp(
-        vector<OPVertex> & avect,
-        vector<OPVertex> & bvect,
-        edgemap_t & edgemap,
-        Split::treeid_t & C1,
-        Split::treeid_t & C2,
-        Split::treeid_t & D1,
-        Split::treeid_t & D2,
-        bool quiet) {
-    // Assumes avect and bvect form an incompatibility graph that is solvable
-    // (i.e., some vertices in avect are compatible with some vertices in bvect)
-    if (!quiet) {
-        cout << "\nEdmonds-Karp" << endl;
+    inline void OP::opEdmondsKarp(
+            vector<OPVertex> & avect,
+            vector<OPVertex> & bvect,
+            edgemap_t & edgemap,
+            Split::treeid_t & C1,
+            Split::treeid_t & C2,
+            Split::treeid_t & D1,
+            Split::treeid_t & D2,
+            bool quiet) {
+        // Assumes avect and bvect form an incompatibility graph that is solvable
+        // (i.e., some vertices in avect are compatible with some vertices in bvect)
+        if (!quiet) {
+            cout << "\nEdmonds-Karp" << endl;
 
 #if defined(OP_SAVE_DOT_FILE)
-        // Uncomment the line below to save graph.dot (visualization of incompatibility graph in dot language)
-        opSaveIncompatibilityGraph(avect, bvect);
+            // Uncomment the line below to save graph.dot (visualization of incompatibility graph in dot language)
+            opSaveIncompatibilityGraph(avect, bvect);
 #endif
 
-    }
-
-    bool done = false;
-    while (!done) {
-        vector<OPVertex *> route;
-
-        // Make sure none of the "b" vertices are marked as visited
-        for (auto & b : bvect) {
-            b._parent_index = -1;
         }
 
-        // Add all avect vertices to the route if they have capacity > 0
-        for (auto & a : avect) {
-            if (a._capacity > 0.0) {
-                route.push_back(&a);
+        bool done = false;
+        while (!done) {
+            vector<OPVertex *> route;
+
+            // Make sure none of the "b" vertices are marked as visited
+            for (auto & b : bvect) {
+                b._parent_index = -1;
             }
-        }
 
-        // Add all children of the "a" vertices already in the route if they have nonzero capacity
-        // and if they haven't already been added
-        auto route_size = static_cast<unsigned>(route.size());
-        for (unsigned aindex = 0; aindex < route_size; aindex++) {
-            OPVertex * a = route[aindex];
-            for (auto & b : a->_children) {
-                if (b->_capacity > 0.0 && b->_parent_index == -1) {
-                    b->_parent_index = static_cast<int>(aindex);
-                    route.push_back(b);
+            // Add all avect vertices to the route if they have capacity > 0
+            for (auto & a : avect) {
+                if (a._capacity > 0.0) {
+                    route.push_back(&a);
                 }
-                else if (b->_parent_index == -1) {
-                    // B is accessible but has outgoing capacity zero; see if any viable route exists to the left
-                    // Check to see if this ever happens; if it does happen, more coding needs to happen
-                    for (unsigned ai = 0; ai < route_size; ai++) {
-                        if (route[ai]->_capacity == 0.0 && edgemap.at(make_pair(route[ai], b)) > 0.0) {
-                            throw Xop("error: need to handle reverse flow in Edmonds-Karp algorithm");
+            }
+
+            // Add all children of the "a" vertices already in the route if they have nonzero capacity
+            // and if they haven't already been added
+            auto route_size = static_cast<unsigned>(route.size());
+            for (unsigned aindex = 0; aindex < route_size; aindex++) {
+                OPVertex * a = route[aindex];
+                for (auto & b : a->_children) {
+                    if (b->_capacity > 0.0 && b->_parent_index == -1) {
+                        b->_parent_index = static_cast<int>(aindex);
+                        route.push_back(b);
+                    }
+                    else if (b->_parent_index == -1) {
+                        // B is accessible but has outgoing capacity zero; see if any viable route exists to the left
+                        // Check to see if this ever happens; if it does happen, more coding needs to happen
+                        for (unsigned ai = 0; ai < route_size; ai++) {
+                            if (route[ai]->_capacity == 0.0 && edgemap.at(make_pair(route[ai], b)) > 0.0) {
+                                throw Xop("error: need to handle reverse flow in Edmonds-Karp algorithm");
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Find B vertex that first reaches the sink
-        OPVertex * last = nullptr;
-        for (auto & r : route) {
-            if (r->_parent_index > -1) {
-                last = r;
-                break;
-            }
-        }
-
-        if (!last)
-            // If we did not reach the sink, we're done
-            done = true;
-        else {
-            // Identify the route
-            auto avertex = route[last->_parent_index];
-            auto bvertex = last;
-            auto abpair = make_pair(avertex, bvertex);
-
-            // Find minimum capacity along the route
-            double min_capacity = last->_capacity;
-            if (route[last->_parent_index]->_capacity < min_capacity) {
-                min_capacity = route[last->_parent_index]->_capacity;
-            }
-
-            if (!quiet) {
-                cout << "\nRoute (asterisks show path obtained by following parents from sink to source):" << endl;
-                for (unsigned i = 0; i < route.size(); i++) {
-                    if (i == last->_parent_index || route[i] == last)
-                        cout << str(format("    %s (capacity = %.3f) *") % route[i]->_split->createPatternRepresentation() % route[i]->_capacity) << endl;
-                    else
-                        cout << str(format("    %s (capacity = %.3f)") % route[i]->_split->createPatternRepresentation() % route[i]->_capacity) << endl;
+            // Find B vertex that first reaches the sink
+            OPVertex * last = nullptr;
+            for (auto & r : route) {
+                if (r->_parent_index > -1) {
+                    last = r;
+                    break;
                 }
-                cout << "  Min capacity along route: " << min_capacity << endl;
             }
 
-            // Reduce capacity of the leftmost edge on the route by an amount min_capacity
-            avertex->_capacity -= min_capacity;
-            if (fabs(avertex->_capacity) < 1e-10) {
-                avertex->_capacity = 0.0;
-            }
+            if (!last)
+                // If we did not reach the sink, we're done
+                    done = true;
+            else {
+                // Identify the route
+                auto avertex = route[last->_parent_index];
+                auto bvertex = last;
+                auto abpair = make_pair(avertex, bvertex);
 
-            // Increase the flow on the focal edge by min_capacity
-            edgemap.at(abpair) += min_capacity;
+                // Find minimum capacity along the route
+                double min_capacity = last->_capacity;
+                if (route[last->_parent_index]->_capacity < min_capacity) {
+                    min_capacity = route[last->_parent_index]->_capacity;
+                }
 
-            // Reduce capacity of the rightmost edge on the route by an amount min_capacity
-            bvertex->_capacity -= min_capacity;
-            if (fabs(bvertex->_capacity) < 1e-10) {
-                bvertex->_capacity = 0.0;
-            }
+                if (!quiet) {
+                    cout << "\nRoute (asterisks show path obtained by following parents from sink to source):" << endl;
+                    for (unsigned i = 0; i < route.size(); i++) {
+                        if (i == last->_parent_index || route[i] == last)
+                            cout << str(format("    %s (capacity = %.3f) *") % route[i]->_split->createPatternRepresentation() % route[i]->_capacity) << endl;
+                        else
+                            cout << str(format("    %s (capacity = %.3f)") % route[i]->_split->createPatternRepresentation() % route[i]->_capacity) << endl;
+                    }
+                    cout << "  Min capacity along route: " << min_capacity << endl;
+                }
+
+                // Reduce capacity of the leftmost edge on the route by an amount min_capacity
+                avertex->_capacity -= min_capacity;
+                if (fabs(avertex->_capacity) < 1e-10) {
+                    avertex->_capacity = 0.0;
+                }
+
+                // Increase the flow on the focal edge by min_capacity
+                edgemap.at(abpair) += min_capacity;
+
+                // Reduce capacity of the rightmost edge on the route by an amount min_capacity
+                bvertex->_capacity -= min_capacity;
+                if (fabs(bvertex->_capacity) < 1e-10) {
+                    bvertex->_capacity = 0.0;
+                }
 
 #if defined(OP_SAVE_DOT_FILE)
-            if (!quiet) {
-                // Uncomment the line below to save graph.dot (visualization of incompatibility graph in dot language)
-                opSaveIncompatibilityGraph(avect, bvect);
-            }
+                if (!quiet) {
+                    // Uncomment the line below to save graph.dot (visualization of incompatibility graph in dot language)
+                    opSaveIncompatibilityGraph(avect, bvect);
+                }
 #endif
+            }
         }
-    }
 
-    // Identify C1, C2, D1, and D2
-    // C1 and D2 compose the min weight vertex cover
-    // C2 and D` compose the independent set
-    for (auto & a : avect) {
-        if (a._capacity > 0.0) {
-            // Because this A-vertex has residual capacity, it is part of the independent set
-            C2.insert(*(a._split));
+        // Identify C1, C2, D1, and D2
+        // C1 and D2 compose the min weight vertex cover
+        // C2 and D` compose the independent set
+        for (auto & a : avect) {
+            if (a._capacity > 0.0) {
+                // Because this A-vertex has residual capacity, it is part of the independent set
+                C2.insert(*(a._split));
 
-            // This A vertex allows access to the B side, so any connected B vertices with
-            // zero capacity are part of the vertex cover
-            for (const auto b : a._children) {
-                if (b->_capacity == 0.0) {
-                    D2.insert(*(b->_split));
+                // This A vertex allows access to the B side, so any connected B vertices with
+                // zero capacity are part of the vertex cover
+                for (const auto b : a._children) {
+                    if (b->_capacity == 0.0) {
+                        D2.insert(*(b->_split));
+                    }
                 }
             }
-        }
-        else {
-            // Because this A-vertex has zero capacity, it is part of the vertex cover
-            C1.insert(*(a._split));
+            else {
+                // Because this A-vertex has zero capacity, it is part of the vertex cover
+                C1.insert(*(a._split));
 
-            // No need to consider connected B vertices because this A-vertex already
-            // covers all connected edges
+                // No need to consider connected B vertices because this A-vertex already
+                // covers all connected edges
+            }
+        }
+
+        // D1 includes every split not in D2
+        D1.clear();
+        for (auto & b : bvect) {
+            if (D2.count(*(b._split)) == 0) {
+                D1.insert(*(b._split));
+            }
         }
     }
-
-    // D1 includes every split not in D2
-    D1.clear();
-    for (auto & b : bvect) {
-        if (D2.count(*(b._split)) == 0) {
-            D1.insert(*(b._split));
-        }
-    }
-}
 #endif
 
-inline bool OP::opRefineSupport(const Split::treeid_pair_t & AB, Split::treeid_pair_t & AB1, Split::treeid_pair_t & AB2) const {
-    // Create a vector of incompatibility graph vertices
-    vector<OPVertex> avect(AB.first.size());
-    vector<OPVertex> bvect(AB.second.size());
+    inline bool OP::opRefineSupport(const Split::treeid_pair_t & AB, Split::treeid_pair_t & AB1, Split::treeid_pair_t & AB2) const {
+        // Create a vector of incompatibility graph vertices
+        vector<OPVertex> avect(AB.first.size());
+        vector<OPVertex> bvect(AB.second.size());
 
-    //                                      23  123  456  123456
-    //vector<unsigned> a_splits_in_order = { 6,   7,  56,     63};
+        //                                      23  123  456  123456
+        //vector<unsigned> a_splits_in_order = { 6,   7,  56,     63};
 
-    // Calculate weights for the "A" vertices.
-    // For example, if A = {a1,a2,a3}, then the weight of a1 is
-    // weight a1 = a1^2 / (a1^2 + a2^2 + a3^2)
-    unsigned aindex = 0;
-    double asum = 0.0;
-    for (auto & a : AB.first) {
-        asum += pow(a.getEdgeLen(),2);
-    }
-    for (auto & a : AB.first) {
-        avect[aindex]._split = &a;
-        avect[aindex]._weight = pow(a.getEdgeLen(),2)/asum;
-        aindex++;
-    }
+        // Calculate weights for the "A" vertices.
+        // For example, if A = {a1,a2,a3}, then the weight of a1 is
+        // weight a1 = a1^2 / (a1^2 + a2^2 + a3^2)
+        unsigned aindex = 0;
+        double asum = 0.0;
+        for (auto & a : AB.first) {
+            asum += pow(a.getEdgeLen(),2);
+        }
+        for (auto & a : AB.first) {
+            avect[aindex]._split = &a;
+            avect[aindex]._weight = pow(a.getEdgeLen(),2)/asum;
+            aindex++;
+        }
 
-    // Calculate weights for the "B" vertices.
-    // For example, if B = {b1,b2,b3}, then the weight of b1 is
-    // weight b1 = b1^2 / (b1^2 + b2^2 + b3^2)
-    unsigned bindex = 0;
-    double bsum = 0.0;
-    for (auto & b : AB.second) {
-        bsum += pow(b.getEdgeLen(),2);
-    }
+        // Calculate weights for the "B" vertices.
+        // For example, if B = {b1,b2,b3}, then the weight of b1 is
+        // weight b1 = b1^2 / (b1^2 + b2^2 + b3^2)
+        unsigned bindex = 0;
+        double bsum = 0.0;
+        for (auto & b : AB.second) {
+            bsum += pow(b.getEdgeLen(),2);
+        }
 #if 0 //temporary!
-    //                                    25  67  2567  34  234567
-    vector<unsigned> b_splits_in_order = {18, 96,  114, 12,    126};
-    for (auto & b : AB.second) {
-        unsigned long bvalue = b.getBits()[0];
-        bindex = 99;
-        for (unsigned z = 0; z < b_splits_in_order.size(); z++) {
-            if (bvalue == b_splits_in_order[z]) {
-                bindex = z;
-                break;
+        //                                    25  67  2567  34  234567
+        vector<unsigned> b_splits_in_order = {18, 96,  114, 12,    126};
+        for (auto & b : AB.second) {
+            unsigned long bvalue = b.getBits()[0];
+            bindex = 99;
+            for (unsigned z = 0; z < b_splits_in_order.size(); z++) {
+                if (bvalue == b_splits_in_order[z]) {
+                    bindex = z;
+                    break;
+                }
             }
+            assert(bindex < 99);
+            bvect[bindex]._split = &b;
+            bvect[bindex]._weight = pow(b.getEdgeLen(),2)/bsum;
         }
-        assert(bindex < 99);
-        bvect[bindex]._split = &b;
-        bvect[bindex]._weight = pow(b.getEdgeLen(),2)/bsum;
-    }
 #else
-    for (auto & b : AB.second) {
-        bvect[bindex]._split = &b;
-        bvect[bindex]._weight = pow(b.getEdgeLen(),2)/bsum;
-        bindex++;
-    }
+        for (auto & b : AB.second) {
+            bvect[bindex]._split = &b;
+            bvect[bindex]._weight = pow(b.getEdgeLen(),2)/bsum;
+            bindex++;
+        }
 #endif
 
-    // Create the incompatibility graph
-    // A vertices go on the left, B vertices go on the right, and edges connect an A vertex
-    // to a B vertex only if the two vertices are incompatible.
-    vector<OPEdge> all_edges;
-    all_edges.reserve(avect.size() * bvect.size() + avect.size() + bvect.size());
-    unsigned nincompatibilities = 0;
-    auto asize = static_cast<unsigned>(avect.size());
-    auto bsize = static_cast<unsigned>(bvect.size());
+        // Create the incompatibility graph
+        // A vertices go on the left, B vertices go on the right, and edges connect an A vertex
+        // to a B vertex only if the two vertices are incompatible.
+        vector<OPEdge> all_edges;
+        all_edges.reserve(avect.size() * bvect.size() + avect.size() + bvect.size());
+        unsigned nincompatibilities = 0;
+        auto asize = static_cast<unsigned>(avect.size());
+        auto bsize = static_cast<unsigned>(bvect.size());
 
-    // Create edges from source to the A-vertices
-    OPVertex source;
-    source._name = "source";
-    for (unsigned i = 0; i < asize; i++) {
-        // Assign a name to avect[i]
-        avect[i]._name = str(format("a%d") % i);
+        // Create edges from source to the A-vertices
+        OPVertex source;
+        source._name = "source";
+        for (unsigned i = 0; i < asize; i++) {
+            // Assign a name to avect[i]
+            avect[i]._name = str(format("a%d") % i);
 
-        // Create the forward edge
-        all_edges.emplace_back();
-        OPEdge & source_forward_edge = all_edges.back();
-        source_forward_edge._from = &source;
-        source_forward_edge._to = &avect[i];
-        source_forward_edge._capacity = avect[i]._weight;
-        source_forward_edge._flow = 0.0;
-        source_forward_edge._reverse_flow = 0.0;
-        source_forward_edge._open = true;
-        source._edges.push_back(&source_forward_edge);
-    }
+            // Create the forward edge
+            all_edges.emplace_back();
+            OPEdge & source_forward_edge = all_edges.back();
+            source_forward_edge._from = &source;
+            source_forward_edge._to = &avect[i];
+            source_forward_edge._capacity = avect[i]._weight;
+            source_forward_edge._flow = 0.0;
+            source_forward_edge._reverse_flow = 0.0;
+            source_forward_edge._open = true;
+            source._edges.push_back(&source_forward_edge);
+        }
 
-    // Create edges from A-vertices to B-vertices
-    for (unsigned i = 0; i < asize; i++) {
-        // Get split associated with avect[i]
-        const Split * a = avect[i]._split;
-        assert(a);
+        // Create edges from A-vertices to B-vertices
+        for (unsigned i = 0; i < asize; i++) {
+            // Get split associated with avect[i]
+            const Split * a = avect[i]._split;
+            assert(a);
+            for (unsigned j = 0; j < bsize; j++) {
+                // Get split associated with bvect[j]
+                const Split * b = bvect[j]._split;
+                assert(b);
+                if (!a->compatibleWith(*b)) {
+                    nincompatibilities++;
+
+                    // Create a forward edge in the incompatibility graph
+                    all_edges.emplace_back();
+                    OPEdge & forward_edge = all_edges.back();
+                    forward_edge._from = &avect[i];
+                    forward_edge._to = &bvect[j];
+                    forward_edge._capacity = 1.0;
+                    forward_edge._flow = 0.0;
+                    forward_edge._reverse_flow = 0.0;
+                    forward_edge._open = true;
+                    avect[i]._edges.emplace_back(&forward_edge);
+                }
+            }
+        }
+
+        // Create edges from the B-vertices to the sink
+        OPVertex sink;
+        sink._name = "sink";
         for (unsigned j = 0; j < bsize; j++) {
-            // Get split associated with bvect[j]
-            const Split * b = bvect[j]._split;
-            assert(b);
-            if (!a->compatibleWith(*b)) {
-                nincompatibilities++;
+            // Assign a name to bvect[j]
+            bvect[j]._name = str(format("b%d") % j);
 
-                // Create a forward edge in the incompatibility graph
-                all_edges.emplace_back();
-                OPEdge & forward_edge = all_edges.back();
-                forward_edge._from = &avect[i];
-                forward_edge._to = &bvect[j];
-                forward_edge._capacity = 1.0;
-                forward_edge._flow = 0.0;
-                forward_edge._reverse_flow = 0.0;
-                forward_edge._open = true;
-                avect[i]._edges.emplace_back(&forward_edge);
+            // Create the edge
+            all_edges.emplace_back();
+            OPEdge & sink_forward_edge = all_edges.back();
+            sink_forward_edge._from = &bvect[j];
+            sink_forward_edge._to = &sink;
+            sink_forward_edge._capacity = bvect[j]._weight;
+            sink_forward_edge._flow = 0.0;
+            sink_forward_edge._reverse_flow = 0.0;
+            sink_forward_edge._open = true;
+            bvect[j]._edges.emplace_back(&sink_forward_edge);
+        }
+
+        bool success = false;
+        if (nincompatibilities < asize*bsize) {
+            // At least one independent pair of vertices exists
+            // Carry out Edmonds-Karp algorithm to find min-weight vertex cover (identifies max weight independent set)
+            // In Owens-Provan terminology,
+            //   C1 = A's contribution to vertex cover     (equals AB1.first)
+            //   C2 = A's contribution to independent set  (equals AB2.first)
+            //   D1 = B's contribution to independent set  (equals AB1.second)
+            //   D2 = B's contribution to vertex cover     (equals AB2.second)
+            // A1 and A2 must represent a non-trivial partition of A
+            // B1 and B2 must represent a non-trivial partition of B
+            // C2 and D1 (AB2.first and AB1.second) are compatible sets of splits
+            // C1 and D2 (AB1.first and AB2.second) compose the minimum weight vertex cover
+            // ||C1||/||D1|| < ||C2||/||D2|| must be true
+            // If all of the above conditions hold, then the support can be refined:
+            // A = (A1,A2) and B = (B1,B2)
+            // where A1 = C1, A2 = C2, B1 = D1, and B2 = D2
+            // Length of this segment of the geodesic is
+            //   L = sqrt{ (||A1|| + ||B1||)^2 +  (||A2|| + ||B2||)^2 }
+            // Orthants crossed:
+            //   start:        A1, A2
+            //      edges in A1 decreasing, edges in B1 increasing
+            //   intermediate: B1, A2
+            //      edges in A2 decreasing, edges in B2 increasing
+            //   finish:       B1, B2
+            // The point at which A1 edges become 0 is
+            //   ||A1||/(||A1|| + ||B1||)
+            // The point at which A2 edges become 0 is
+            //   ||A2||/(||A2|| + ||B2||)
+            opEdmondsKarp(source, sink, avect, bvect, AB1.first, AB2.first, AB1.second, AB2.second, _quiet);
+
+            // if (!quiet) {
+            //     cout << "\nResults:" << endl;
+            //     cout << str(format("  ||C1|| = %.9f") % C1len) << endl;
+            //     cout << str(format("  ||C2|| = %.9f") % C2len) << endl;
+            //     cout << str(format("  ||D1|| = %.9f") % D1len) << endl;
+            //     cout << str(format("  ||D2|| = %.9f") % D2len) << endl;
+            //     cout << "  Check whether ||C1||/||D1|| < ||C2||/||D2||" << endl;
+            //     cout << str(format("    %.9f < %.9f") % (C1len/D1len) % (C2len/D2len));
+            //     cout << endl;
+            // }
+
+            // Check conditions for successful refinement
+            bool A_is_trivial = (AB1.first.empty()) || (AB2.first.empty());
+            bool B_is_trivial = (AB1.second.empty())|| (AB2.second.empty());
+            double C1len = opCalcTreeIDLength(AB1.first);
+            double C2len = opCalcTreeIDLength(AB2.first);
+            double D1len = opCalcTreeIDLength(AB1.second);
+            double D2len = opCalcTreeIDLength(AB2.second);
+            bool P2 = C1len/D1len < C2len/D2len;
+            success = !A_is_trivial && !B_is_trivial && P2;
+
+            if (!_quiet) {
+                if (success) {
+                    cout << "\nSuccessfully refined support:" << endl;
+                }
+                else {
+                    cout << "\nSupport not refined because:" << endl;
+                    if (A_is_trivial) {
+                        cout << "  A is a trivial partition:" << endl;
+                    }
+                    if (B_is_trivial) {
+                        cout << "  B is a trivial partition:" << endl;
+                    }
+                    if (!P2) {
+                        cout << "  ||C1||/||D1|| is not strictly less than ||C2||/||D2||" << endl;
+                    }
+                }
+                // cout << "  Input A vertices:" << endl;
+                // for (auto & a : AB.first) {
+                //     cout << "    " << a.createPatternRepresentation() << endl;
+                // }
+                // cout << "  Input B vertices:" << endl;
+                // for (auto & b : AB.second) {
+                //     cout << "    " << b.createPatternRepresentation() << endl;
+                // }
+                cout << "  Output A1 vertices:" << endl;
+                if (AB1.first.empty()) {
+                    cout << "    empty set" << endl;
+                }
+                else {
+                    for (auto & a : AB1.first) {
+                        cout << "    " << a.createPatternRepresentation(true) << endl;
+                    }
+                }
+                cout << "  Output B1 vertices:" << endl;
+                if (AB1.second.empty()) {
+                    cout << "    empty set" << endl;
+                }
+                else {
+                    for (auto & b : AB1.second) {
+                        cout << "    " << b.createPatternRepresentation(true) << endl;
+                    }
+                }
+                cout << "  Output A2 vertices:" << endl;
+                if (AB2.first.empty()) {
+                    cout << "    empty set" << endl;
+                }
+                else {
+                    for (auto & a : AB2.first) {
+                        cout << "    " << a.createPatternRepresentation(true) << endl;
+                    }
+                }
+                cout << "  Output B2 vertices:" << endl;
+                if (AB2.second.empty()) {
+                    cout << "    empty set" << endl;
+                }
+                else {
+                    for (auto & b : AB2.second) {
+                        cout << "    " << b.createPatternRepresentation(true) << endl;
+                    }
+                }
+                cout << endl;
             }
         }
+        return success;
     }
 
-    // Create edges from the B-vertices to the sink
-    OPVertex sink;
-    sink._name = "sink";
-    for (unsigned j = 0; j < bsize; j++) {
-        // Assign a name to bvect[j]
-        bvect[j]._name = str(format("b%d") % j);
+    inline double OP::opCalcGeodesicDist(vector<Split::treeid_pair_t> & ABpairs) const {
+        // Assumes a_splits and b_splits have no common edges
+        vector<Split::treeid_pair_t> support;
+        bool done = false;
+        while (!done) {
+            unsigned nrefinements = 0;
+            for (auto & ABpair : ABpairs) {
+                Split::treeid_pair_t AB1;
+                Split::treeid_pair_t AB2;
+                bool success = opRefineSupport(ABpair, AB1, AB2);
+                if (success) {
+                    // ABpair was successfully refined, so add AB1 and AB2 to support
+                    support.push_back(AB1);
+                    support.push_back(AB2);
+                    nrefinements++;
+                }
+                else {
+                    // ABpair was not successfully refined, so add ABpair to support
+                    support.push_back(ABpair);
+                }
+            }
+            done = (nrefinements == 0);
+            if (!done) {
+                ABpairs = support;
+                support.clear();
+            }
+        }
 
-        // Create the edge
-        all_edges.emplace_back();
-        OPEdge & sink_forward_edge = all_edges.back();
-        sink_forward_edge._from = &bvect[j];
-        sink_forward_edge._to = &sink;
-        sink_forward_edge._capacity = bvect[j]._weight;
-        sink_forward_edge._flow = 0.0;
-        sink_forward_edge._reverse_flow = 0.0;
-        sink_forward_edge._open = true;
-        bvect[j]._edges.emplace_back(&sink_forward_edge);
+        // Calculate geodesic distance
+        unsigned ratio_index = 1;
+        double geodesic_distance = 0.0;
+        for (auto & AB : support) {
+            double dropped_length = opCalcTreeIDLength(AB.first);
+            double added_length   = opCalcTreeIDLength(AB.second);
+            double ratio = dropped_length/added_length;
+            geodesic_distance += pow(dropped_length + added_length, 2);
+
+            if (!_quiet) {
+                cout << str(format("\nRatio %d: %.9f") % ratio_index % ratio) << endl;
+                cout << "  Edges dropped:" << endl;
+                for (auto & a : AB.first) {
+                    cout << "    " << a.createPatternRepresentation() << endl;
+                }
+                cout << "  Edges added:" << endl;
+                for (auto & b : AB.second) {
+                    cout << "    " << b.createPatternRepresentation() << endl;
+                }
+            }
+            ++ratio_index;
+        }
+        geodesic_distance = sqrt(geodesic_distance);
+        return geodesic_distance;
     }
 
-    bool success = false;
-    if (nincompatibilities < asize*bsize) {
-        // At least one independent pair of vertices exists
-        // Carry out Edmonds-Karp algorithm to find min-weight vertex cover (identifies max weight independent set)
-        // In Owens-Provan terminology,
-        //   C1 = A's contribution to vertex cover     (equals AB1.first)
-        //   C2 = A's contribution to independent set  (equals AB2.first)
-        //   D1 = B's contribution to independent set  (equals AB1.second)
-        //   D2 = B's contribution to vertex cover     (equals AB2.second)
-        // A1 and A2 must represent a non-trivial partition of A
-        // B1 and B2 must represent a non-trivial partition of B
-        // C2 and D1 (AB2.first and AB1.second) are compatible sets of splits
-        // C1 and D2 (AB1.first and AB2.second) compose the minimum weight vertex cover
-        // ||C1||/||D1|| < ||C2||/||D2|| must be true
-        // If all of the above conditions hold, then the support can be refined:
-        // A = (A1,A2) and B = (B1,B2)
-        // where A1 = C1, A2 = C2, B1 = D1, and B2 = D2
-        // Length of this segment of the geodesic is
-        //   L = sqrt{ (||A1|| + ||B1||)^2 +  (||A2|| + ||B2||)^2 }
-        // Orthants crossed:
-        //   start:        A1, A2
-        //      edges in A1 decreasing, edges in B1 increasing
-        //   intermediate: B1, A2
-        //      edges in A2 decreasing, edges in B2 increasing
-        //   finish:       B1, B2
-        // The point at which A1 edges become 0 is
-        //   ||A1||/(||A1|| + ||B1||)
-        // The point at which A2 edges become 0 is
-        //   ||A2||/(||A2|| + ||B2||)
-        opEdmondsKarp(source, sink, avect, bvect, AB1.first, AB2.first, AB1.second, AB2.second, _quiet);
+    inline void OP::buildTree(unsigned tree_index, TreeManip & tm) const {
+        string newick = _tree_summary->getNewick(tree_index);
 
-        // if (!quiet) {
-        //     cout << "\nResults:" << endl;
-        //     cout << str(format("  ||C1|| = %.9f") % C1len) << endl;
-        //     cout << str(format("  ||C2|| = %.9f") % C2len) << endl;
-        //     cout << str(format("  ||D1|| = %.9f") % D1len) << endl;
-        //     cout << str(format("  ||D2|| = %.9f") % D2len) << endl;
-        //     cout << "  Check whether ||C1||/||D1|| < ||C2||/||D2||" << endl;
-        //     cout << str(format("    %.9f < %.9f") % (C1len/D1len) % (C2len/D2len));
-        //     cout << endl;
-        // }
+        bool isrooted = _tree_summary->isRooted(tree_index);
+        if (!isrooted) {
+            throw Xop("Trees must be rooted in this version");
+        }
+        tm.buildFromNewick(newick, /*rooted*/isrooted, /*allow_polytomies*/true);
+        //tm.setLeafNames(_taxon_labels);
+    }
 
-        // Check conditions for successful refinement
-        bool A_is_trivial = (AB1.first.empty()) || (AB2.first.empty());
-        bool B_is_trivial = (AB1.second.empty())|| (AB2.second.empty());
-        double C1len = opCalcTreeIDLength(AB1.first);
-        double C2len = opCalcTreeIDLength(AB2.first);
-        double D1len = opCalcTreeIDLength(AB1.second);
-        double D2len = opCalcTreeIDLength(AB2.second);
-        bool P2 = C1len/D1len < C2len/D2len;
-        success = !A_is_trivial && !B_is_trivial && P2;
+    inline double OP::calcBHVDistance(
+            TreeManip & starttm,
+            TreeManip & endtm,
+            vector<pair<Split::treeid_t, Split::treeid_t> > & in_pairs,
+            vector<Split::treeid_pair_t> & ABpairs,
+            vector<Split::split_pair_t> & commonPairs) const {
+        ABpairs.clear();
+
+        // Store splits from the starting tree
+        Split::treeid_t A0;
+        Split::treeid_t Alvs;
+        starttm.storeSplits(A0, Alvs);
+
+        // Only save splits with non-zero edge length
+        Split::treeid_t A;
+        for (auto & a : A0) {
+            if (a.getEdgeLen() > 0.0) {
+                A.insert(a);
+            }
+            else {
+                // Drop this split because it has an edge length of zero
+                starttm.dropSplit(a); //TODO: is this OK?
+            }
+        }
 
         if (!_quiet) {
-            if (success) {
-                cout << "\nSuccessfully refined support:" << endl;
+            cout << "Internal splits from starting tree:" << endl;
+            for (const auto& a : A) {
+                cout << "  " << a.createPatternRepresentation(true) << endl;
+            }
+        }
+
+        // Store splits from the ending tree
+        Split::treeid_t B0;
+        Split::treeid_t Blvs;
+        endtm.storeSplits(B0, Blvs);
+
+        // Only save splits with non-zero edge length
+        Split::treeid_t B;
+        for (auto & b : B0) {
+            if (b.getEdgeLen() > 0.0) {
+                B.insert(b);
             }
             else {
-                cout << "\nSupport not refined because:" << endl;
-                if (A_is_trivial) {
-                    cout << "  A is a trivial partition:" << endl;
-                }
-                if (B_is_trivial) {
-                    cout << "  B is a trivial partition:" << endl;
-                }
-                if (!P2) {
-                    cout << "  ||C1||/||D1|| is not strictly less than ||C2||/||D2||" << endl;
-                }
+                // Drop this split because it has an edge length of zero
+                endtm.dropSplit(b); //TODO: is this OK?
             }
-            // cout << "  Input A vertices:" << endl;
-            // for (auto & a : AB.first) {
-            //     cout << "    " << a.createPatternRepresentation() << endl;
-            // }
-            // cout << "  Input B vertices:" << endl;
-            // for (auto & b : AB.second) {
-            //     cout << "    " << b.createPatternRepresentation() << endl;
-            // }
-            cout << "  Output A1 vertices:" << endl;
-            if (AB1.first.empty()) {
-                cout << "    empty set" << endl;
+        }
+
+        if (!_quiet) {
+            cout << "Internal splits from ending tree:" << endl;
+            for (const auto& b : B) {
+                cout << "  " << b.createPatternRepresentation(true) << endl;
             }
-            else {
-                for (auto & a : AB1.first) {
+        }
+
+        // Find common edges and calculate the contribution of common edge lengths to the geodesic
+        double common_edge_contribution_squared = opFindCommonEdges(A, B, commonPairs);
+
+        if (!commonPairs.empty()) {
+            // Remove splits representing common edges from both A and B
+            for (auto & cpair : commonPairs) {
+                if (cpair.first.getSize() > 0)
+                    A.erase(cpair.first);
+                if (cpair.second.getSize() > 0)
+                    B.erase(cpair.second);
+            }
+        }
+        in_pairs.emplace_back(A,B);
+
+        // Calculate the contribution of leaf edges to the geodesic
+        double leaf_contribution_squared = opCalcLeafContribution(Alvs, Blvs, commonPairs);
+
+        unsigned pair_index = 1;
+        vector<double> geodesic_distances;
+        for (const auto & inpair : in_pairs) {
+            if (!_quiet)
+                cout << str(format("\nTree pair %d (of %d)") % pair_index % in_pairs.size()) << endl;
+
+            ABpairs.push_back(inpair);
+
+            if (!_quiet) {
+                cout << "  A splits:" << endl;
+                for (const auto& a : ABpairs[0].first) {
                     cout << "    " << a.createPatternRepresentation(true) << endl;
                 }
-            }
-            cout << "  Output B1 vertices:" << endl;
-            if (AB1.second.empty()) {
-                cout << "    empty set" << endl;
-            }
-            else {
-                for (auto & b : AB1.second) {
+
+                cout << "  B splits:" << endl;
+                for (const auto& b : ABpairs[0].second) {
                     cout << "    " << b.createPatternRepresentation(true) << endl;
                 }
             }
-            cout << "  Output A2 vertices:" << endl;
-            if (AB2.first.empty()) {
-                cout << "    empty set" << endl;
-            }
-            else {
-                for (auto & a : AB2.first) {
-                    cout << "    " << a.createPatternRepresentation(true) << endl;
-                }
-            }
-            cout << "  Output B2 vertices:" << endl;
-            if (AB2.second.empty()) {
-                cout << "    empty set" << endl;
-            }
-            else {
-                for (auto & b : AB2.second) {
-                    cout << "    " << b.createPatternRepresentation(true) << endl;
-                }
-            }
+
+            double L = opCalcGeodesicDist(ABpairs);
+
+            if (!_quiet)
+                cout << str(format("  L for tree pair %d = %.9f") % pair_index % L) << endl;
+
+            geodesic_distances.push_back(L);
+            ++pair_index;
+        }
+
+        if (!_quiet)
             cout << endl;
-        }
-    }
-    return success;
-}
 
-inline double OP::opCalcGeodesicDist(vector<Split::treeid_pair_t> & ABpairs) const {
-    // Assumes a_splits and b_splits have no common edges
-    vector<Split::treeid_pair_t> support;
-    bool done = false;
-    while (!done) {
-        unsigned nrefinements = 0;
-        for (auto & ABpair : ABpairs) {
-            Split::treeid_pair_t AB1;
-            Split::treeid_pair_t AB2;
-            bool success = opRefineSupport(ABpair, AB1, AB2);
-            if (success) {
-                // ABpair was successfully refined, so add AB1 and AB2 to support
-                support.push_back(AB1);
-                support.push_back(AB2);
-                nrefinements++;
-            }
-            else {
-                // ABpair was not successfully refined, so add ABpair to support
-                support.push_back(ABpair);
-            }
+        // Calculate total geodesic distance
+        double total_geodesic_distance = 0.0;
+        for (double x : geodesic_distances) {
+            total_geodesic_distance += pow(x, 2);
         }
-        done = (nrefinements == 0);
-        if (!done) {
-            ABpairs = support;
-            support.clear();
-        }
+        total_geodesic_distance += leaf_contribution_squared;
+        total_geodesic_distance += common_edge_contribution_squared;
+        total_geodesic_distance = sqrt(total_geodesic_distance);
+
+        if (!_quiet)
+            cout << str(format("Total geodesic distance = %.9f") % total_geodesic_distance) << endl;
+
+        return total_geodesic_distance;
     }
 
-    // Calculate geodesic distance
-    unsigned ratio_index = 1;
-    double geodesic_distance = 0.0;
-    for (auto & AB : support) {
-        double dropped_length = opCalcTreeIDLength(AB.first);
-        double added_length   = opCalcTreeIDLength(AB.second);
-        double ratio = dropped_length/added_length;
-        geodesic_distance += pow(dropped_length + added_length, 2);
-
-        if (!_quiet) {
-            cout << str(format("\nRatio %d: %.9f") % ratio_index % ratio) << endl;
-            cout << "  Edges dropped:" << endl;
-            for (auto & a : AB.first) {
-                cout << "    " << a.createPatternRepresentation() << endl;
-            }
-            cout << "  Edges added:" << endl;
-            for (auto & b : AB.second) {
-                cout << "    " << b.createPatternRepresentation() << endl;
-            }
-        }
-        ++ratio_index;
-    }
-    geodesic_distance = sqrt(geodesic_distance);
-    return geodesic_distance;
-}
-
-inline void OP::buildTree(unsigned tree_index, TreeManip & tm) const {
-    string newick = _tree_summary->getNewick(tree_index);
-
-    bool isrooted = _tree_summary->isRooted(tree_index);
-    if (!isrooted) {
-        throw Xop("Trees must be rooted in this version");
-    }
-    tm.buildFromNewick(newick, /*rooted*/isrooted, /*allow_polytomies*/true);
-    //tm.setLeafNames(_taxon_labels);
-}
-
-inline double OP::calcBHVDistance(
+#if defined(CLUSTER_DISTANCE)
+    inline double OP::calcClusterDistance(
         TreeManip & starttm,
         TreeManip & endtm,
-        vector<Split::treeid_pair_t> & ABpairs,
-        vector<Split::split_pair_t> & commonPairs) const {
-    ABpairs.clear();
-
-    // Store splits from the starting tree
-    Split::treeid_t A0;
-    Split::treeid_t Alvs;
-    starttm.storeSplits(A0, Alvs);
-
-    // Only save splits with non-zero edge length
-    Split::treeid_t A;
-    for (auto & a : A0) {
-        if (a.getEdgeLen() > 0.0) {
-            A.insert(a);
-        }
-        else {
-            // Drop this split because it has an edge length of zero
-            starttm.dropSplit(a); //TODO: is this OK?
-        }
-    }
-
-    if (!_quiet) {
-        cout << "Internal splits from starting tree:" << endl;
-        for (const auto& a : A) {
-            cout << "  " << a.createPatternRepresentation(true) << endl;
-        }
-    }
-
-    // Store splits from the ending tree
-    Split::treeid_t B0;
-    Split::treeid_t Blvs;
-    endtm.storeSplits(B0, Blvs);
-
-    // Only save splits with non-zero edge length
-    Split::treeid_t B;
-    for (auto & b : B0) {
-        if (b.getEdgeLen() > 0.0) {
-            B.insert(b);
-        }
-        else {
-            // Drop this split because it has an edge length of zero
-            endtm.dropSplit(b); //TODO: is this OK?
-        }
-    }
-
-    if (!_quiet) {
-        cout << "Internal splits from ending tree:" << endl;
-        for (const auto& b : B) {
-            cout << "  " << b.createPatternRepresentation(true) << endl;
-        }
-    }
-
-    // Find common edges and calculate the contribution of common edge lengths to the geodesic
-    double common_edge_contribution_squared = opFindCommonEdges(A, B, commonPairs);
-
-    if (!commonPairs.empty()) {
-        // Remove splits representing common edge from both A and B
-        for (auto & cpair : commonPairs) {
-            if (cpair.first.getSize() > 0)
-                A.erase(cpair.first);
-            if (cpair.second.getSize() > 0)
-                B.erase(cpair.second);
-        }
-    }
-    vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
-    in_pairs.emplace_back(A,B);
-
-    // Calculate the contribution of leaf edges to the geodesic
-    double leaf_contribution_squared = opCalcLeafContribution(Alvs, Blvs, commonPairs);
-
-    unsigned pair_index = 1;
-    vector<double> geodesic_distances;
-    for (auto & inpair : in_pairs) {
-        if (!_quiet)
-            cout << str(format("\nTree pair %d (of %d)") % pair_index % in_pairs.size()) << endl;
-
-        ABpairs.push_back(inpair);
-
+        const vector<pair<Split::treeid_t, Split::treeid_t> > & in_pairs,
+        const vector<Split::split_pair_t> & commonPairs) const {
+        // commonPairs are the splits common to both input trees (including trivial splits)
+        // in_pairs.first holds the unique splits in the first input tree
+        // in_pairs.second holds the unique splits in the second input tree
+        assert(in_pairs.size() == 1);
+        double mci_score = 0.0;
+        double total_entropy = 0.0;
         if (!_quiet) {
-            cout << "  A splits:" << endl;
-            for (const auto& a : ABpairs[0].first) {
-                cout << "    " << a.createPatternRepresentation(true) << endl;
+            cerr << "\n********** calcClusterDistance **********" << endl;
+        }
+        for (const auto & s : commonPairs) {
+            unsigned nbits = s.first.getNumBitsSet();
+            unsigned nlvs = s.first.getSize();
+            if (nbits > 1 && nbits < nlvs - 1) {
+                double h = 2.0*s.first.entropy();
+                total_entropy += h;
+                double I = s.first.mutualClusteringInfo(s.first);
+                mci_score += I;
+                if (!_quiet) {
+                    cerr << "  common pair:  " << s.first.createPatternRepresentation() << " (h = " << h << ", I = " << I << ", mci_score = " << mci_score << ")" << endl;
+                }
             }
+        }
 
-            cout << "  B splits:" << endl;
-            for (const auto& b : ABpairs[0].second) {
-                cout << "    " << b.createPatternRepresentation(true) << endl;
+        auto Asplits = in_pairs[0].first;
+        auto Bsplits = in_pairs[0].second;
+
+        // Each element of the pairings vector is a 4-tuple;
+        // 1. mci
+        // 2. ha + hb
+        // 3. split a
+        // 4. split b
+        typedef std::tuple<double, double, Split, Split> pairing_t;
+        vector<pairing_t> pairings;
+        for (const auto & a : Asplits) {
+            for (const auto & b : Bsplits) {
+                double mci = a.mutualClusteringInfo(b);
+                double ha = a.entropy();
+                double hb = b.entropy();
+                pairings.emplace_back(make_tuple(mci, ha+hb, a, b));
             }
         }
 
-        double L = opCalcGeodesicDist(ABpairs);
+        // Sort the pairings from highest to lowest mci
+        sort(pairings.begin(), pairings.end(), greater<pairing_t>());
 
-        if (!_quiet)
-            cout << str(format("  L for tree pair %d = %.9f") % pair_index % L) << endl;
+        // Keep track of splits already matched
+        Split::treeid_t splits_matched;
 
-        geodesic_distances.push_back(L);
-        ++pair_index;
-    }
+        for (const auto & p : pairings) {
+            double mci      = get<0>(p);
+            double h        = get<1>(p);
+            const Split & a = get<2>(p);
+            const Split & b = get<3>(p);
+            if (splits_matched.count(a) + splits_matched.count(b) == 0) {
+                // Neither split a nor split b has already been matched
+                mci_score += mci;
+                total_entropy += h;
+                if (!_quiet) {
+                    cerr << "  matched pair: " << mci << ": " << a.createPatternRepresentation() << " <--> " << b.createPatternRepresentation() << " (h = " << h << ")" << endl;
+                }
 
-    if (!_quiet)
-        cout << endl;
-
-    // Calculate total geodesic distance
-    double total_geodesic_distance = 0.0;
-    for (double x : geodesic_distances) {
-        total_geodesic_distance += pow(x, 2);
-    }
-    total_geodesic_distance += leaf_contribution_squared;
-    total_geodesic_distance += common_edge_contribution_squared;
-    total_geodesic_distance = sqrt(total_geodesic_distance);
-
-    if (!_quiet)
-        cout << str(format("Total geodesic distance = %.9f") % total_geodesic_distance) << endl;
-
-    return total_geodesic_distance;
-}
-
-inline double OP::calcKFDistance(unsigned ref_index, unsigned test_index) const {
-    // Get the reference tree
-    string ref_newick = _tree_summary->getNewick(ref_index);
-    bool ref_isrooted = _tree_summary->isRooted(ref_index);
-
-    // Get the test tree
-    string test_newick = _tree_summary->getNewick(test_index);
-    bool test_isrooted = _tree_summary->isRooted(ref_index);
-
-    // Ensure both trees are rooted
-    if (!ref_isrooted || !test_isrooted) {
-        throw Xop(format("Trees must be rooted in this version of %s") % OP::_program_name);
-    }
-
-    // Build the reference tree
-    TreeManip reftm;
-    reftm.buildFromNewick(ref_newick, /*rooted*/ref_isrooted, /*allow_polytomies*/true);
-    //TODO: get rooted status from treeManip object
-
-    // Store splits from the reference tree
-    Split::treeid_t refsplits;
-    Split::treeid_t reflvs;
-    reftm.storeSplits(refsplits, reflvs);
-
-    // Build the test tree
-    TreeManip testtm;
-    testtm.buildFromNewick(test_newick, /*rooted*/test_isrooted, /*allow_polytomies*/false);
-
-    // Store splits from the reference tree
-    Split::treeid_t testsplits;
-    Split::treeid_t testlvs;
-    testtm.storeSplits(testsplits, testlvs);
-
-    // Store union of refsplits and testsplits in allsplits
-    Split::treeid_t allsplits;
-    set_union(
-        refsplits.begin(), refsplits.end(),
-        testsplits.begin(), testsplits.end(),
-        inserter(allsplits, allsplits.begin()));
-
-    // Traverse allsplits, storing squared branch length differences in KLinternals
-    vector<double> KLinternals(allsplits.size());
-    unsigned i = 0;
-    for (auto s : allsplits) {
-        Node * nd0 = reftm.getNodeWithSplit(s);
-        Node * nd  = testtm.getNodeWithSplit(s);
-        assert(!(nd0 == nullptr && nd == nullptr));
-        if (nd0 == nullptr) {
-            double edge_length = nd->getEdgeLength();
-            double square = pow(edge_length, 2.0);
-            KLinternals[i++] = square;
+                // These two splits have been matched so make sure they are not matched again
+                splits_matched.insert(a);
+                splits_matched.insert(b);
+            }
+            else if (!_quiet) {
+                cerr << "  ------------: " << mci << ": " << a.createPatternRepresentation() << " <--> " << b.createPatternRepresentation() << " (h = " << h << ")" << endl;
+            }
         }
-        else if (nd == nullptr) {
-            double edge_length = nd0->getEdgeLength();
-            double square = pow(edge_length, 2.0);
-            KLinternals[i++] = square;
+
+        double max_value = total_entropy/2.0;
+        double d = (max_value - mci_score)/max_value;
+        if (!_quiet) {
+            cerr << "max_value = " << max_value << endl;
+            cerr << "mci_score = " << mci_score << endl;
+            cerr << "distance = " << d << endl;
         }
-        else {
+        return d;
+    }
+#endif
+
+#if defined(KUHNER_FELSENSTEIN_DISTANCE)
+    inline double OP::calcKFDistance(unsigned ref_index, unsigned test_index) const {
+        // Get the reference tree
+        string ref_newick = _tree_summary->getNewick(ref_index);
+        bool ref_isrooted = _tree_summary->isRooted(ref_index);
+
+        // Get the test tree
+        string test_newick = _tree_summary->getNewick(test_index);
+        bool test_isrooted = _tree_summary->isRooted(ref_index);
+
+        // Ensure both trees are rooted
+        if (!ref_isrooted || !test_isrooted) {
+            throw Xop(format("Trees must be rooted in this version of %s") % OP::_program_name);
+        }
+
+        // Build the reference tree
+        TreeManip reftm;
+        reftm.buildFromNewick(ref_newick, /*rooted*/ref_isrooted, /*allow_polytomies*/true);
+        //TODO: get rooted status from treeManip object
+
+        // Store splits from the reference tree
+        Split::treeid_t refsplits;
+        Split::treeid_t reflvs;
+        reftm.storeSplits(refsplits, reflvs);
+
+        // Build the test tree
+        TreeManip testtm;
+        testtm.buildFromNewick(test_newick, /*rooted*/test_isrooted, /*allow_polytomies*/false);
+
+        // Store splits from the reference tree
+        Split::treeid_t testsplits;
+        Split::treeid_t testlvs;
+        testtm.storeSplits(testsplits, testlvs);
+
+        // Store union of refsplits and testsplits in allsplits
+        Split::treeid_t allsplits;
+        set_union(
+            refsplits.begin(), refsplits.end(),
+            testsplits.begin(), testsplits.end(),
+            inserter(allsplits, allsplits.begin()));
+
+        // Traverse allsplits, storing squared branch length differences in KLinternals
+        vector<double> KLinternals(allsplits.size());
+        unsigned i = 0;
+        for (auto s : allsplits) {
+            Node * nd0 = reftm.getNodeWithSplit(s);
+            Node * nd  = testtm.getNodeWithSplit(s);
+            assert(!(nd0 == nullptr && nd == nullptr));
+            if (nd0 == nullptr) {
+                double edge_length = nd->getEdgeLength();
+                double square = pow(edge_length, 2.0);
+                KLinternals[i++] = square;
+            }
+            else if (nd == nullptr) {
+                double edge_length = nd0->getEdgeLength();
+                double square = pow(edge_length, 2.0);
+                KLinternals[i++] = square;
+            }
+            else {
+                double edge_length0 = nd0->getEdgeLength();
+                double edge_length  = nd->getEdgeLength();
+                double square = pow(edge_length0 - edge_length, 2.0);
+                KLinternals[i++] = square;
+            }
+        }
+
+        // Create the map in which keys are taxon names and values are Node pointers
+        // for the reference tree
+        map<string, Node *> leafmap0;
+        reftm.createLeafNodeMap(leafmap0);
+
+        // Create a map in which keys are taxon names and values are Node pointers
+        // for the test tree
+        map<string, Node *> leafmap;
+        testtm.createLeafNodeMap(leafmap);
+
+        // The two trees should have the same number of leaves
+        assert(leafmap0.size() == leafmap.size());
+
+        // Get taxon names from the reference tree (assuming the taxon names
+        // in the test tree are the same)
+        vector<string> names;
+        names.reserve(leafmap0.size());
+    for (const auto& p : leafmap0) {
+            names.push_back(p.first);
+        }
+        sort(names.begin(), names.end());
+
+        // Now calculate squares for leaf nodes, storing in KLleaves
+        vector<double> KLleaves(names.size());
+        i = 0;
+        for (const auto& nm : names) {
+            Node * nd0 = leafmap0[nm];
+            Node * nd  = leafmap[nm];
             double edge_length0 = nd0->getEdgeLength();
             double edge_length  = nd->getEdgeLength();
             double square = pow(edge_length0 - edge_length, 2.0);
-            KLinternals[i++] = square;
+            KLleaves[i++] = square;
         }
-    }
 
-    // Create the map in which keys are taxon names and values are Node pointers
-    // for the reference tree
-    map<string, Node *> leafmap0;
-    reftm.createLeafNodeMap(leafmap0);
-
-    // Create a map in which keys are taxon names and values are Node pointers
-    // for the test tree
-    map<string, Node *> leafmap;
-    testtm.createLeafNodeMap(leafmap);
-
-    // The two trees should have the same number of leaves
-    assert(leafmap0.size() == leafmap.size());
-
-    // Get taxon names from the reference tree (assuming the taxon names
-    // in the test tree are the same)
-    vector<string> names;
-    names.reserve(leafmap0.size());
-for (const auto& p : leafmap0) {
-        names.push_back(p.first);
-    }
-    sort(names.begin(), names.end());
-
-    // Now calculate squares for leaf nodes, storing in KLleaves
-    vector<double> KLleaves(names.size());
-    i = 0;
-    for (const auto& nm : names) {
-        Node * nd0 = leafmap0[nm];
-        Node * nd  = leafmap[nm];
-        double edge_length0 = nd0->getEdgeLength();
-        double edge_length  = nd->getEdgeLength();
-        double square = pow(edge_length0 - edge_length, 2.0);
-        KLleaves[i++] = square;
-    }
-
-    // Calculate KL distance
-    double KLdist = 0.0;
-    for (auto square : KLinternals) {
-        KLdist += square;
-    }
-    for (auto square : KLleaves) {
-        KLdist += square;
-    }
-
-    return KLdist;
-}
-
-inline void OP::chooseRandomTree(TreeManip & tm, Lot & lot) const {
-    int n = static_cast<int>(_tree_summary->getNumTrees());
-    auto index = static_cast<unsigned>(lot.randint(0, n-1));
-    string newick = _tree_summary->getNewick(index);
-    bool rooted = _tree_summary->isRooted(index);
-    assert(rooted);
-    tm.buildFromNewick(newick, rooted, /*allow_polytomies*/true);
-}
-
-inline void OP::displaceTreeAlongGeodesic(TreeManip & start_tree, TreeManip & end_tree, double displacement) const {
-    // Move start_tree a distance displacement along the geodesic from start_tree to end_tree
-    // First, get geodesic
-    vector<Split::treeid_pair_t> ABpairs;
-    vector<Split::split_pair_t> commonPairs;
-    calcBHVDistance(start_tree, end_tree, ABpairs, commonPairs);
-
-    // Support A = (A1, A2, ..., Ak) and B = (B1, B2, ..., Bk)
-    // Path has i-1,2,...,k "legs"
-    //    G0 if lambda/(1-lambda) <= length(A1)/length(B1)
-    //    Gi if length(Ai)/length(Bi) = lambda/(1-lambda) <= length(Ai+1)/length(Bi+1)
-    //    Gk if length(Ak)/length(Bk) <= lambda/(1-lambda)
-    // and tree Ti along path has edge sets
-    //    B1 U ... U Bi U Ai+1 U ... U Ak
-    // and edge sets
-    //    length edge e in Ti = [(1-lambda) length(Aj) - lambda length(Bj)]/length(Aj) if e in Aj
-    //    length edge e in Ti = [lambda length(Bj) - (1-lambda) length(Aj)]/length(Bj) if e in Bj
-
-    // Precalculate lengths of all segments
-    auto support_size = static_cast<unsigned>(ABpairs.size());
-    vector<double> lenA(support_size);
-    vector<double> lenB(support_size);
-    for (unsigned i = 0; i < support_size; ++i) {
-        lenA[i] = opCalcTreeIDLength(ABpairs[i].first);
-        lenB[i] = opCalcTreeIDLength(ABpairs[i].second);
-    }
-
-    // Walk down ABpairs, dropping and adding splits as needed from the start_tree until we arrive at the destination leg
-    double lambda = displacement;
-    unsigned leg = 0;
-    while (true) {
-        double lambda_leg = 1.0;
-        if (leg < support_size) {
-            double ratio_leg = lenA[leg]/lenB[leg];
-            lambda_leg = ratio_leg/(1.0 + ratio_leg);
+        // Calculate KL distance
+        double KLdist = 0.0;
+        for (auto square : KLinternals) {
+            KLdist += square;
         }
-        if (lambda <= lambda_leg) {
-            break;
+        for (auto square : KLleaves) {
+            KLdist += square;
         }
-        for (auto & asplit : ABpairs[leg].first) {
-            // Drop asplit from the start_tree
-            start_tree.dropSplit(asplit);
-        }
-        for (auto & bsplit : ABpairs[leg].second) {
-            // Add bsplit to the start_tree
-            start_tree.addSplit(bsplit);
-        }
-        ++leg;
+
+        return KLdist;
+    }
+#endif
+
+    inline void OP::chooseRandomTree(TreeManip & tm, Lot & lot) const {
+        int n = static_cast<int>(_tree_summary->getNumTrees());
+        auto index = static_cast<unsigned>(lot.randint(0, n-1));
+        string newick = _tree_summary->getNewick(index);
+        bool rooted = _tree_summary->isRooted(index);
+        assert(rooted);
+        tm.buildFromNewick(newick, rooted, /*allow_polytomies*/true);
     }
 
-    // Modify edge lengths
-    for (unsigned i = 0; i < leg; ++i) {
-        for (auto & bsplit : ABpairs[i].second) {
-            double edgelen_multiplicative_factor = (lambda*lenB[i] - (1.0 - lambda)*lenA[i])/lenB[i];
-            double edgelen = bsplit.getEdgeLen();
-            start_tree.setEdgeLength(bsplit, edgelen_multiplicative_factor*edgelen);
-        }
-    }
-    for (unsigned i = leg; i < ABpairs.size(); ++i) {
-        for (auto & asplit : ABpairs[i].first) {
-            double edgelen_multiplicative_factor = ((1 - lambda)*lenA[i] - lambda*lenB[i])/lenA[i];
-            double edgelen = asplit.getEdgeLen();
-            start_tree.setEdgeLength(asplit, edgelen_multiplicative_factor*edgelen);
-        }
-    }
+    inline void OP::displaceTreeAlongGeodesic(TreeManip & start_tree, TreeManip & end_tree, double displacement) const {
+        // Move start_tree a distance displacement along the geodesic from start_tree to end_tree
+        // First, get geodesic
+        vector<Split::treeid_pair_t> ABpairs;
+        vector<Split::split_pair_t> commonPairs;
+        vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+        calcBHVDistance(start_tree, end_tree, in_pairs, ABpairs, commonPairs);
 
-    for (auto & commonPair : commonPairs) {
-        double from_edgelen = commonPair.first.getEdgeLen();
-        double to_edgelen = commonPair.second.getEdgeLen();
-        double new_edgelen = from_edgelen + lambda*(to_edgelen - from_edgelen);
-        start_tree.setEdgeLength(commonPair.first, new_edgelen);
-    }
-}
+        // Support A = (A1, A2, ..., Ak) and B = (B1, B2, ..., Bk)
+        // Path has i-1,2,...,k "legs"
+        //    G0 if lambda/(1-lambda) <= length(A1)/length(B1)
+        //    Gi if length(Ai)/length(Bi) = lambda/(1-lambda) <= length(Ai+1)/length(Bi+1)
+        //    Gk if length(Ak)/length(Bk) <= lambda/(1-lambda)
+        // and tree Ti along path has edge sets
+        //    B1 U ... U Bi U Ai+1 U ... U Ak
+        // and edge sets
+        //    length edge e in Ti = [(1-lambda) length(Aj) - lambda length(Bj)]/length(Aj) if e in Aj
+        //    length edge e in Ti = [lambda length(Bj) - (1-lambda) length(Aj)]/length(Bj) if e in Bj
 
-inline bool OP::frechetCloseEnough(vector<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const {
-    // Compute pairwise distances between trees in mu with index >= lower and index < upper and return
-    // true iff all pairwise distances are less than epsilon
-    bool is_close_enough = true;
-    vector<Split::treeid_pair_t> ABpairs;
-    vector<Split::split_pair_t> commonPairs;
-    assert(lower < upper);
-    assert (upper <= mu.size());
-    for (unsigned i = lower; i < upper - 1; ++i) {
-        for (unsigned j = i+1; j < upper; ++j) {
-            double bhvdist = calcBHVDistance(mu[i-1], mu[j-1], ABpairs, commonPairs);
-            if (bhvdist > epsilon) {
-                is_close_enough = false;
+        // Precalculate lengths of all segments
+        auto support_size = static_cast<unsigned>(ABpairs.size());
+        vector<double> lenA(support_size);
+        vector<double> lenB(support_size);
+        for (unsigned i = 0; i < support_size; ++i) {
+            lenA[i] = opCalcTreeIDLength(ABpairs[i].first);
+            lenB[i] = opCalcTreeIDLength(ABpairs[i].second);
+        }
+
+        // Walk down ABpairs, dropping and adding splits as needed from the start_tree until we arrive at the destination leg
+        double lambda = displacement;
+        unsigned leg = 0;
+        while (true) {
+            double lambda_leg = 1.0;
+            if (leg < support_size) {
+                double ratio_leg = lenA[leg]/lenB[leg];
+                lambda_leg = ratio_leg/(1.0 + ratio_leg);
+            }
+            if (lambda <= lambda_leg) {
                 break;
             }
+            for (auto & asplit : ABpairs[leg].first) {
+                // Drop asplit from the start_tree
+                start_tree.dropSplit(asplit);
+            }
+            for (auto & bsplit : ABpairs[leg].second) {
+                // Add bsplit to the start_tree
+                start_tree.addSplit(bsplit);
+            }
+            ++leg;
+        }
+
+        // Modify edge lengths
+        for (unsigned i = 0; i < leg; ++i) {
+            for (auto & bsplit : ABpairs[i].second) {
+                double edgelen_multiplicative_factor = (lambda*lenB[i] - (1.0 - lambda)*lenA[i])/lenB[i];
+                double edgelen = bsplit.getEdgeLen();
+                start_tree.setEdgeLength(bsplit, edgelen_multiplicative_factor*edgelen);
+            }
+        }
+        for (unsigned i = leg; i < ABpairs.size(); ++i) {
+            for (auto & asplit : ABpairs[i].first) {
+                double edgelen_multiplicative_factor = ((1 - lambda)*lenA[i] - lambda*lenB[i])/lenA[i];
+                double edgelen = asplit.getEdgeLen();
+                start_tree.setEdgeLength(asplit, edgelen_multiplicative_factor*edgelen);
+            }
+        }
+
+        for (auto & commonPair : commonPairs) {
+            double from_edgelen = commonPair.first.getEdgeLen();
+            double to_edgelen = commonPair.second.getEdgeLen();
+            double new_edgelen = from_edgelen + lambda*(to_edgelen - from_edgelen);
+            start_tree.setEdgeLength(commonPair.first, new_edgelen);
         }
     }
-    return is_close_enough;
-}
 
-inline unsigned OP::computeFrechetMean(TreeManip & mean_tree) const {
-    // Returns the number of iterations required to compute the Frechet mean tree
-    double   epsilon = _frechet_epsilon; // successive mean estimates must be at least this close to stop iterating
-    unsigned N = _frechet_n;   // number of previous mean estimates that must be as close as epsilon
-    unsigned K = _frechet_k; // maximum number of iterations
-    unsigned k = 1;   // keeps track of iterations
-    vector<TreeManip> mu;
-    mu.reserve(K);// the trail of estimated mean trees (always has length k)
-    Lot lot;
-    lot.setSeed(_random_number_seed);
-    mu.emplace_back();
-    chooseRandomTree(mu[k-1], lot);
-    bool done = false;
-    while (!done) {
-        ++k;
+    inline bool OP::frechetCloseEnough(vector<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const {
+        // Compute pairwise distances between trees in mu with index >= lower and index < upper and return
+        // true iff all pairwise distances are less than epsilon
+        bool is_close_enough = true;
+        vector<Split::treeid_pair_t> ABpairs;
+        vector<Split::split_pair_t> commonPairs;
+        vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+        assert(lower < upper);
+        assert (upper <= mu.size());
+        for (unsigned i = lower; i < upper - 1; ++i) {
+            for (unsigned j = i+1; j < upper; ++j) {
+                double bhvdist = calcBHVDistance(mu[i-1], mu[j-1], in_pairs, ABpairs, commonPairs);
+                if (bhvdist > epsilon) {
+                    is_close_enough = false;
+                    break;
+                }
+            }
+        }
+        return is_close_enough;
+    }
+
+    inline unsigned OP::computeFrechetMean(TreeManip & mean_tree) const {
+        // Returns the number of iterations required to compute the Frechet mean tree
+        double   epsilon = _frechet_epsilon; // successive mean estimates must be at least this close to stop iterating
+        unsigned N = _frechet_n;   // number of previous mean estimates that must be as close as epsilon
+        unsigned K = _frechet_k; // maximum number of iterations
+        unsigned k = 1;   // keeps track of iterations
+        vector<TreeManip> mu;
+        mu.reserve(K);// the trail of estimated mean trees (always has length k)
+        Lot lot;
+        lot.setSeed(_random_number_seed);
         mu.emplace_back();
-        assert(mu.size() == k);
         chooseRandomTree(mu[k-1], lot);
+        bool done = false;
+        while (!done) {
+            ++k;
+            mu.emplace_back();
+            assert(mu.size() == k);
+            chooseRandomTree(mu[k-1], lot);
 
-        displaceTreeAlongGeodesic(mu[k-1], mu[k-2], 1.0*k/(k+1));
-        if (k >= K) {
-            done = true;
+            displaceTreeAlongGeodesic(mu[k-1], mu[k-2], 1.0*k/(k+1));
+            if (k >= K) {
+                done = true;
+            }
+            if (k > N) {
+                done = frechetCloseEnough(mu, k-N, k, epsilon);
+            }
         }
-        if (k > N) {
-            done = frechetCloseEnough(mu, k-N, k, epsilon);
+        mean_tree.setTree(mu[k-1].getTree());
+        return k;
+    }
+
+    inline void OP::testKDE() {
+        // Initialize pseudorandom number generator
+        Lot lot;
+        lot.setSeed(12345);
+
+        // Simulate Gamma(shape, scale) data
+        double shape = 2.0;
+        double scale = 3.0;
+        unsigned sample_size = 1000;
+        vector<double> sample(sample_size);
+        for (unsigned i = 0; i < sample_size; ++i) {
+            sample[i] = lot.gamma(shape,scale);
         }
-    }
-    mean_tree.setTree(mu[k-1].getTree());
-    return k;
-}
 
-inline void OP::testKDE() {
-    // Initialize pseudorandom number generator
-    Lot lot;
-    lot.setSeed(12345);
+        // Calculate _kde_sigma and _kde_band_width
+        sort(sample.begin(), sample.end());
+        calcBandWidth(sample);
 
-    // Simulate Gamma(shape, scale) data
-    double shape = 2.0;
-    double scale = 3.0;
-    unsigned sample_size = 1000;
-    vector<double> sample(sample_size);
-    for (unsigned i = 0; i < sample_size; ++i) {
-        sample[i] = lot.gamma(shape,scale);
-    }
-
-    // Calculate _kde_sigma and _kde_band_width
-    sort(sample.begin(), sample.end());
-    calcBandWidth(sample);
-
-    // Save x, true density of x, KDE of x to a file suitable for use with both R and Tracer
-    double min_xvalue = 0.0;
-    double max_xvalue = 10.0;
-    unsigned n = 10000;
-    double incr = (max_xvalue - min_xvalue)/n;
-    vector<string> x(n);
-    vector<string> ptrue(n);
-    vector<string> pkde(n);
-    double xvalue = 0.0;
-    for (unsigned i = 0; i < n; ++i) {
-        double kde = kernelDensity(xvalue, sample);
-        double true_density = 0.0;
-        if (xvalue > 0.0) {
-            double logf = (shape - 1.0)*log(xvalue) - xvalue/scale - shape*log(scale) - boost::math::lgamma(shape);
-            true_density = exp(logf);
+        // Save x, true density of x, KDE of x to a file suitable for use with both R and Tracer
+        double min_xvalue = 0.0;
+        double max_xvalue = 10.0;
+        unsigned n = 10000;
+        double incr = (max_xvalue - min_xvalue)/n;
+        vector<string> x(n);
+        vector<string> ptrue(n);
+        vector<string> pkde(n);
+        double xvalue = 0.0;
+        for (unsigned i = 0; i < n; ++i) {
+            double kde = kernelDensity(xvalue, sample);
+            double true_density = 0.0;
+            if (xvalue > 0.0) {
+                double logf = (shape - 1.0)*log(xvalue) - xvalue/scale - shape*log(scale) - boost::math::lgamma(shape);
+                true_density = exp(logf);
+            }
+            x[i] = str(format("%0.9f") % xvalue);
+            ptrue[i] = str(format("%0.9f") % true_density);
+            pkde[i] = str(format("%0.9f") % kde);
+            xvalue += incr;
         }
-        x[i] = str(format("%0.9f") % xvalue);
-        ptrue[i] = str(format("%0.9f") % true_density);
-        pkde[i] = str(format("%0.9f") % kde);
-        xvalue += incr;
-    }
 
-    vector<string> xsampled(sample_size);
-    for (unsigned i = 0; i < sample_size; ++i) {
-        xsampled[i] = str(format("%0.9f") % sample[i]);
-    }
-
-    ofstream outf("kde_test.R");
-    outf << "x <- c(" << boost::join(x, ", ") << ")\n";
-    outf << "ptrue <- c(" << boost::join(ptrue, ", ") << ")\n";
-    outf << "pkde <- c(" << boost::join(pkde, ", ") << ")\n";
-    outf << "xsampled <- c(" << boost::join(xsampled, ", ") << ")\n";
-    outf << "plot(x, ptrue, type=\"l\", lty=\"solid\", lwd=1, col=\"navy\", xlab=\"x\", ylab=\"density\", main=\"KDE test\")\n";
-    outf << "lines(x, pkde, lty=\"solid\", lwd=5, col=\"red\")\n";
-    outf << "lines(density(xsampled), lty=\"solid\", lwd=3, col=\"green\")\n";
-    outf << "quantile(xsampled, probs = c(0.25, 0.50, 0.75), type = 7)\n";
-    outf.close();
-
-    cerr << "File \"kde_test.R\" has been saved." << endl;
-}
-
-
-inline void OP::calcBandWidth(const vector<double> & sample) {
-    // Assumes sample is already sorted from lowest to highest value
-    // Calculate IQR (InterQuartile Range)
-    auto n = static_cast<unsigned>(sample.size());
-
-    // Calculate the 0.25 quantile
-    double p = 0.25;
-    double k = p*(n - 1.0) + 1.0;
-    auto ki = static_cast<unsigned>(floor(k));
-    _kde_q25 = sample[ki - 1];
-    if (k != ki) {
-        // k is not an integer, so interpolate
-        unsigned kiplus1 = ki + 1;
-        _kde_q25 = (sample[ki-1] + (k - ki)*(sample[kiplus1-1] - sample[ki-1]));
-    }
-
-    // Calculate the 0.75 quantile
-    p = 0.75;
-    k = p*(n - 1.0) + 1.0;
-    ki = static_cast<unsigned>(floor(k));
-    _kde_q75 = sample[ki - 1];
-    if (k != ki) {
-        // k is not an integer, so interpolate
-        unsigned kiplus1 = ki + 1;
-        _kde_q75 = (sample[ki-1] + (k - ki)*(sample[kiplus1-1] - sample[ki-1]));
-    }
-    double IQR = _kde_q75 - _kde_q25;
-
-    // Calculate the sample standard deviation
-    double sumx = 0.0;
-    double sumxsq = 0.0;
-    for (double xi : sample) {
-        sumx += xi;
-        sumxsq += pow(xi, 2.0);
-    }
-    double meanx = sumx/n;
-    double varx = (sumxsq - n*pow(meanx, 2.0))/(n-1);
-    _kde_sigma = sqrt(varx);
-
-    // Calculate the rule-of-thumb bandwidth
-    double A = min(_kde_sigma, IQR/1.34);
-    _kde_bandwidth = 0.9*A*pow(n, -0.2);
-}
-
-inline double OP::kernelDensity(double x, const vector<double> & sample) const {
-    if (x <= 0.0)
-        return 0.0;
-    auto n = static_cast<double>(sample.size());
-    double sigma = 1.0; //_kde_sigma;
-    double numer = 0.0;
-    for (double xi : sample) {
-        double term = (x - xi)/(_kde_bandwidth*sigma);
-        numer += exp(-0.5*pow( term, 2 ));
-    }
-    double denom = n*_kde_bandwidth*sigma*sqrt(2.0*M_PI);
-    double f = numer/denom;
-    return f;
-}
-
-inline void OP::rPlotDists(vector<double> & dists, string & rscript, double & hpd_lower, double & hpd_upper, double hpd_level) {
-    assert(dists.size() > 0);
-
-    // Create a data set mirrored across the lower boundary 0.0
-    auto n = static_cast<unsigned>(dists.size());
-    vector<double> mirrored(2*n);
-    for (unsigned i = 0; i < n; ++i) {
-        mirrored[i] = dists[i];
-        mirrored[i+n] = -1.0*dists[i];
-    }
-
-    // Calculate the bandwidth for kernel density estimation
-    sort(mirrored.begin(), mirrored.end());
-    calcBandWidth(mirrored);
-
-    // Create a vector containing (density, dist) tuples for every element of dists
-    vector<pair<double, double> > density_dist;
-    for (double x : dists) {
-        double d1 = kernelDensity(x, mirrored);
-        double d2 = kernelDensity(-x, mirrored);
-        density_dist.emplace_back(d1+d2, x);
-    }
-    
-    // Sort unmirrored vector from the highest density to the lowest
-    sort(density_dist.begin(), density_dist.end(), greater<pair<double, double> >());
-
-    // Find cutoff such that indices 0 to cutoff constitute the HPD
-    auto cutoff = static_cast<unsigned>(floor(static_cast<double>(density_dist.size()) * hpd_level));
-
-    // Initialize hpd_lower to largest distance
-    hpd_lower = *max_element(dists.begin(), dists.begin());
-
-    // Initialize hpd_upper to smallest distance
-    hpd_upper = *min_element(dists.begin(), dists.begin());
-
-    // Find hpd_lower and hpd_upper
-    for (unsigned i = 0; i < cutoff; ++i) {
-        if (density_dist[i].second < hpd_lower) {
-            hpd_lower = density_dist[i].second;
+        vector<string> xsampled(sample_size);
+        for (unsigned i = 0; i < sample_size; ++i) {
+            xsampled[i] = str(format("%0.9f") % sample[i]);
         }
-        if (density_dist[i].second > hpd_upper) {
-            hpd_upper = density_dist[i].second;
+
+        ofstream outf("kde_test.R");
+        outf << "x <- c(" << boost::join(x, ", ") << ")\n";
+        outf << "ptrue <- c(" << boost::join(ptrue, ", ") << ")\n";
+        outf << "pkde <- c(" << boost::join(pkde, ", ") << ")\n";
+        outf << "xsampled <- c(" << boost::join(xsampled, ", ") << ")\n";
+        outf << "plot(x, ptrue, type=\"l\", lty=\"solid\", lwd=1, col=\"navy\", xlab=\"x\", ylab=\"density\", main=\"KDE test\")\n";
+        outf << "lines(x, pkde, lty=\"solid\", lwd=5, col=\"red\")\n";
+        outf << "lines(density(xsampled), lty=\"solid\", lwd=3, col=\"green\")\n";
+        outf << "quantile(xsampled, probs = c(0.25, 0.50, 0.75), type = 7)\n";
+        outf.close();
+
+        cerr << "File \"kde_test.R\" has been saved." << endl;
+    }
+
+    inline void OP::calcBandWidth(const vector<double> & sample) {
+        // Assumes sample is already sorted from lowest to highest value
+        // Calculate IQR (InterQuartile Range)
+        auto n = static_cast<unsigned>(sample.size());
+
+        // Calculate the 0.25 quantile
+        double p = 0.25;
+        double k = p*(n - 1.0) + 1.0;
+        auto ki = static_cast<unsigned>(floor(k));
+        _kde_q25 = sample[ki - 1];
+        if (k != ki) {
+            // k is not an integer, so interpolate
+            unsigned kiplus1 = ki + 1;
+            _kde_q25 = (sample[ki-1] + (k - ki)*(sample[kiplus1-1] - sample[ki-1]));
         }
+
+        // Calculate the 0.75 quantile
+        p = 0.75;
+        k = p*(n - 1.0) + 1.0;
+        ki = static_cast<unsigned>(floor(k));
+        _kde_q75 = sample[ki - 1];
+        if (k != ki) {
+            // k is not an integer, so interpolate
+            unsigned kiplus1 = ki + 1;
+            _kde_q75 = (sample[ki-1] + (k - ki)*(sample[kiplus1-1] - sample[ki-1]));
+        }
+        double IQR = _kde_q75 - _kde_q25;
+
+        // Calculate the sample standard deviation
+        double sumx = 0.0;
+        double sumxsq = 0.0;
+        for (double xi : sample) {
+            sumx += xi;
+            sumxsq += pow(xi, 2.0);
+        }
+        double meanx = sumx/n;
+        double varx = (sumxsq - n*pow(meanx, 2.0))/(n-1);
+        _kde_sigma = sqrt(varx);
+
+        // Calculate the rule-of-thumb bandwidth
+        double A = min(_kde_sigma, IQR/1.34);
+        _kde_bandwidth = 0.9*A*pow(n, -0.2);
     }
 
-    rscript = "cwd = system('cd \"$( dirname \"$0\" )\" && pwd', intern = TRUE)\n";
-    rscript += "setwd(cwd)\n";
-    rscript += "pdf(\"density.pdf\")\n";
-
-    // Save distances to R variable d
-    rscript += str(format("d <- c(%.9f") % density_dist[0].second);
-    for (unsigned i = 1; i < density_dist.size(); ++i) {
-        rscript += str(format(", %.9f") % density_dist[i].second);
+    inline double OP::kernelDensity(double x, const vector<double> & sample) const {
+        if (x <= 0.0)
+            return 0.0;
+        auto n = static_cast<double>(sample.size());
+        double sigma = 1.0; //_kde_sigma;
+        double numer = 0.0;
+        for (double xi : sample) {
+            double term = (x - xi)/(_kde_bandwidth*sigma);
+            numer += exp(-0.5*pow( term, 2 ));
+        }
+        double denom = n*_kde_bandwidth*sigma*sqrt(2.0*M_PI);
+        double f = numer/denom;
+        return f;
     }
-    rscript += ");\n";
 
-    // Save kernel densities to R variable fd
-    rscript += str(format("fd <- c(%.9f") % density_dist[0].first);
-    for (unsigned i = 1; i < density_dist.size(); ++i) {
-        rscript += str(format(", %.9f") % density_dist[i].first);
+    inline void OP::rPlotDists(vector<double> & dists, string & rscript, double & radius, double & hpd_lower, double & hpd_upper, double hpd_level) {
+        assert(dists.size() > 0);
+
+        // Create a data set mirrored across the lower boundary 0.0
+        auto n = static_cast<unsigned>(dists.size());
+        vector<double> mirrored(2*n);
+        for (unsigned i = 0; i < n; ++i) {
+            mirrored[i] = dists[i];
+            mirrored[i+n] = -1.0*dists[i];
+        }
+
+        // Calculate the bandwidth for kernel density estimation
+        sort(mirrored.begin(), mirrored.end());
+        calcBandWidth(mirrored);
+
+        // Create a vector containing (density, dist) tuples for every element of dists
+        vector<pair<double, double> > density_dist;
+        for (double x : dists) {
+            double d1 = kernelDensity(x, mirrored);
+            double d2 = kernelDensity(-x, mirrored);
+            density_dist.emplace_back(d1+d2, x);
+        }
+
+        // Sort unmirrored vector from the highest density to the lowest
+        sort(density_dist.begin(), density_dist.end(), greater<pair<double, double> >());
+
+        // Find cutoff such that indices 0 to cutoff constitute the HPD
+        auto cutoff = static_cast<unsigned>(floor(static_cast<double>(density_dist.size()) * hpd_level));
+
+        // Initialize hpd_lower to largest distance
+        hpd_lower = *max_element(dists.begin(), dists.begin());
+
+        // Initialize hpd_upper to smallest distance
+        hpd_upper = *min_element(dists.begin(), dists.begin());
+
+        // Find hpd_lower and hpd_upper
+        for (unsigned i = 0; i < cutoff; ++i) {
+            if (density_dist[i].second < hpd_lower) {
+                hpd_lower = density_dist[i].second;
+            }
+            if (density_dist[i].second > hpd_upper) {
+                hpd_upper = density_dist[i].second;
+            }
+        }
+
+        // Sort the unmirrored vector now by lowest to highest dist rather than highest to lowest density
+        sort(density_dist.begin(), density_dist.end(), [](pair<double, double> & left, pair<double, double> & right) {
+            return left.second < right.second;
+        });
+        radius = density_dist[cutoff].second;
+
+        rscript = "cwd = system('cd \"$( dirname \"$0\" )\" && pwd', intern = TRUE)\n";
+        rscript += "setwd(cwd)\n";
+        rscript += "pdf(\"density.pdf\")\n";
+
+        // Save distances to R variable d
+        rscript += str(format("d <- c(%.9f") % density_dist[0].second);
+        for (unsigned i = 1; i < density_dist.size(); ++i) {
+            rscript += str(format(", %.9f") % density_dist[i].second);
+        }
+        rscript += ");\n";
+
+        // Save kernel densities to R variable fd
+        rscript += str(format("fd <- c(%.9f") % density_dist[0].first);
+        for (unsigned i = 1; i < density_dist.size(); ++i) {
+            rscript += str(format(", %.9f") % density_dist[i].first);
+        }
+        rscript += ");\n";
+
+        rscript += "dd <- density(d)\n";
+        rscript += "plot(dd, type=\"l\", bty=\"n\", xlab=\"Distance\", ylab=\"Density\", main=\"Distribution of distances\");\n";
+        rscript += "#points(d, fd, col=\"red\");\n";
+        rscript += str(format("included <- dd$x > %g & dd$x < %g\n") % hpd_lower % hpd_upper);
+        rscript += str(format("polygon(c(%g, dd$x[included], %g), c(0, dd$y[included], 0), density=NULL, col=\"lavender\");\n") % hpd_lower % hpd_upper);
+        rscript += "cat(sprintf(\"bandwidth = %g\\n\", dd$bw))\n";
+        rscript += "dev.off()\n";
     }
-    rscript += ");\n";
 
-    rscript += "dd <- density(d)\n";
-    rscript += "plot(dd, type=\"l\", bty=\"n\", xlab=\"Distance\", ylab=\"Density\", main=\"Distribution of distances\");\n";
-    rscript += "#points(d, fd, col=\"red\");\n";
-    rscript += str(format("included <- dd$x > %g & dd$x < %g\n") % hpd_lower % hpd_upper);
-    rscript += str(format("polygon(c(%g, dd$x[included], %g), c(0, dd$y[included], 0), density=NULL, col=\"lavender\");\n") % hpd_lower % hpd_upper);
-    rscript += "cat(sprintf(\"bandwidth = %g\\n\", dd$bw))\n";
-    rscript += "dev.off()\n";
-}
-
-inline void OP::run() {
-    try {
-        bool move_along_path = static_cast<bool>(_distance_lambda >= 0.0 && _distance_lambda <= 1.0);
-        bool noscale_first = false;
-        if (!_output_for_gtp && !move_along_path && !_frechet_mean)
-                noscale_first = true;
-
-        // Read in trees
-        _tree_summary = std::make_shared<TreeSummary>();
-        _tree_summary->readTreefile(_tree_file_name, _skip, _scale_by, noscale_first);
+    inline void OP::calcPairwise() {
         unsigned ntrees = _tree_summary->getNumTrees();
-        if (ntrees == 0) {
-            _tree_summary->readRevBayesTreefile(_tree_file_name, _skip, _scale_by, noscale_first);
-            ntrees = _tree_summary->getNumTrees();
-        }
-        if (ntrees < 2) {
-            throw Xop("Must input at least 2 trees to compute tree distances");
-        }
 
-        if (_output_for_gtp) {
-            if (!_quiet)
-                cout << "Writing trees in newick format to file \"trees-for-gtp.txt\"" << endl;
+        if (!_quiet)
+            cout << "Computing pairwise distance matrix..." << endl;
 
-            ofstream gtpf("trees-for-gtp.txt");
-            for (unsigned i = 0; i < ntrees; ++i) {
-                gtpf << _tree_summary->getNewick(i) << ";\n";
-            }
-            gtpf.close();
-
-            // If output for gtp was requested, then that is all
-            // we try to do on this run
-            if (!_quiet)
-                cout << "Done." << endl;
-            return;
-        }
-
-        if (move_along_path) {
-            if (!_quiet)
-                cout << "Computing tree at lambda = " << setprecision(5) << _distance_lambda << "..." << endl;
-
-            if (_tree_summary->getNumTrees() < 2) {
-                throw Xop("Must input at least 2 trees to compute tree at a particular lambda value");
-            }
-
-            TreeManip starttm;
-            buildTree(0, starttm);
-
-            TreeManip endtm;
-            buildTree(1, endtm);
-
-            displaceTreeAlongGeodesic(starttm, endtm, _distance_lambda);
-
-            // Save the tree at _distance_lambda from the starting tree toward the ending tree
-            string fn = boost::str(format("tree-at-lambda-%.5f.txt") % _distance_lambda);
-            ofstream middle_file(fn);
-            middle_file << starttm.makeNewick(9, true) << endl;
-            middle_file << "# lambda = " << setprecision(9) << _distance_lambda << endl;
-            middle_file.close();
-
-            if (!_quiet) {
-                cout << "Tree at lambda = " << setprecision(5) << _distance_lambda << ":" << endl;
-                cout << starttm.makeNewick(9, true) << endl;
-            }
-
-            return;
-        }
-
-        if (_frechet_mean) {
-            TreeManip mean_tree;
-            if (!_quiet)
-                cout << "Computing Frechet mean tree..." << endl;
-
-            // Compute the mean
-            unsigned number_of_iterations = computeFrechetMean(mean_tree);
-
-            // Compute the variance
-            double variance = 0.0;
-            vector<double> bhvdists(ntrees, 0.0);
-            for (unsigned i = 0; i < ntrees; i++) {
-                TreeManip tm;
-                buildTree(i, tm);
+        double dist_matrix[ntrees][ntrees];
+        TreeManip starttm;
+        TreeManip endtm;
+        for (unsigned i = 0; i < ntrees - 1; i++) {
+            buildTree(i, starttm);
+            for (unsigned j = i+1; j < ntrees; j++) {
+                buildTree(j, endtm);
                 vector<Split::treeid_pair_t> ABpairs;
                 vector<Split::split_pair_t> commonPairs;
-                double bhvdist = calcBHVDistance(mean_tree, tm, ABpairs, commonPairs);
-                variance += bhvdist*bhvdist;
-                bhvdists[i] = bhvdist;
-                //outf << (i+1) << '\t' << setprecision(static_cast<int>(_precision)) << bhvdist << '\n';
+                vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+                double bhvdist = calcBHVDistance(starttm, endtm, in_pairs, ABpairs, commonPairs);
+                dist_matrix[i][j] = bhvdist;
+                dist_matrix[j][i] = bhvdist;
             }
-            variance /= (ntrees - 1);
-
-            // Save the mean tree and variance
-            string fn = _frechet_prefix + ".txt";
-            ofstream mean_file(fn);
-            mean_file << "# " << mean_tree.makeNewick(9, true) << endl;
-            mean_file << boost::str(boost::format("# variance = %.9f\n") % variance);
-            mean_file << boost::str(boost::format("# tree length = %.9f\n") % mean_tree.calcTreeLength());
-            mean_file << boost::str(boost::format("# iterations = %d\n") % number_of_iterations);
-            string rscript;
-            double hpd_lower;
-            double hpd_upper;
-            rPlotDists(bhvdists, rscript, hpd_lower, hpd_upper, 0.95);
-            mean_file << boost::str(boost::format("# q25 = %.9f\n") % _kde_q25);
-            mean_file << boost::str(boost::format("# q75 = %.9f\n") % _kde_q75);
-            mean_file << boost::str(boost::format("# IQR = %.9f\n") % (_kde_q75 - _kde_q25));
-            mean_file << boost::str(boost::format("# KDE sigma = %.9f\n") % _kde_sigma);
-            mean_file << boost::str(boost::format("# KDE bandwidth = %.9f\n") % _kde_bandwidth);
-            mean_file << boost::str(boost::format("# 95%% HPD lower = %.9f\n") % hpd_lower);
-            mean_file << boost::str(boost::format("# 95%% HPD upper = %.9f\n") % hpd_upper);
-            mean_file << "\n" << rscript << endl;
-            mean_file.close();
-
-            if (!_quiet) {
-                cout << boost::str(format("%d iterations required (of %d max. iterations):") % number_of_iterations % _frechet_k) << endl;
-                cout << "Mean tree:" << endl;
-                cout << mean_tree.makeNewick(9, true) << endl;
-                cout << "Variance = " << variance << endl;
-                cout << "Tree length = " << setprecision(9) << mean_tree.calcTreeLength() << endl;
-            }
-
-            if (!_quiet)
-                cout << "Done." << endl;
-            return;
         }
 
-        // Compute the geodesic distance between the first tree and all others
+        // Save the distance matrix to an R file
+        string fn = _prefix + ".R";
+        ofstream distf(fn);
+
+        // Save the lower triangle of the pairwise distance matrix by column
+        // For example, this matrix
+        //        t1 t2 t3 t4
+        //     t1  0  0  0  0
+        //     t2  1  0  0  0
+        //     t3  2  4  0  0
+        //     t4  3  5  6  0
+        // would be saved as
+        // c(1,2,3,4,5,6)
+        // so the indexes saved would be
+        // (1,0), (2,0), (3,0), (2,1), (3,1), (3,2)
+        distf << "lower_triangle_by_column <- c(";
+        bool first = true;
+        for (unsigned j = 0; j < ntrees-1; j++) {
+            for (unsigned i = j+1; i < ntrees; i++) {
+                if (first) {
+                    distf << dist_matrix[i][j];
+                    first = false;
+                }
+                else
+                    distf << ", " << dist_matrix[i][j];
+            }
+        }
+        distf << ")" << endl;
+        distf << boost::str(format("m <- matrix(rep(0, %d), nrow = %d, ncol = %d, dimnames = list(paste0('t', 1:%d), paste0('t', 1:%d)))")
+            % (ntrees*ntrees) % ntrees % ntrees % ntrees % ntrees) << endl;
+        distf << "m[lower.tri(m, diag = FALSE)] <- lower_triangle_by_column" << endl;
+        distf << "d <- as.dist(m)" << endl;
+        distf << "#mapping <- cmdscale(d, 2)" << endl;
+        distf << "#plot(mapping, asp=1, ann=F, axes=F, col=\"navy\", pch=16)" << endl;
+        distf.close();
+
         if (!_quiet)
-            cout << "Writing geodesic distances to file \"bhvdists.txt\"" << endl;
-        ofstream outf("bhvdists.txt");
-        outf << "tree	distance to tree 1" << endl;
-        TreeManip starttm;
-        buildTree(0, starttm);
-        for (unsigned i = 1; i < ntrees; i++) {
-            TreeManip endtm;
-            buildTree(i, endtm);
+            cout << "Done." << endl;
+    }
+
+    inline void OP::calcFrechetMean() {
+        int ndecimals = static_cast<int>(_precision);
+        unsigned ntrees = _tree_summary->getNumTrees();
+        TreeManip mean_tree;
+        if (!_quiet)
+            cout << "Computing Frechet mean tree..." << endl;
+
+        // Compute the mean
+        unsigned number_of_iterations = computeFrechetMean(mean_tree);
+
+        // Compute the variance
+        double variance = 0.0;
+        vector<double> bhvdists(ntrees, 0.0);
+        for (unsigned i = 0; i < ntrees; i++) {
+            TreeManip tm;
+            buildTree(i, tm);
             vector<Split::treeid_pair_t> ABpairs;
             vector<Split::split_pair_t> commonPairs;
-            double bhvdist = calcBHVDistance(starttm, endtm, ABpairs, commonPairs);
-            outf << (i+1) << '\t' << setprecision(static_cast<int>(_precision)) << bhvdist << '\n';
+            vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+            double bhvdist = calcBHVDistance(mean_tree, tm, in_pairs, ABpairs, commonPairs);
+            variance += bhvdist*bhvdist;
+            bhvdists[i] = bhvdist;
+            //outf << (i+1) << '\t' << setprecision(static_cast<int>(ndecimals)) << bhvdist << '\n';
         }
-        outf.close();
+        variance /= (ntrees - 1);
+
+        // Save the mean tree and variance
+        string fn = _prefix + ".txt";
+        ofstream mean_file(fn);
+        mean_file << "# " << mean_tree.makeNewick(9, true) << endl;
+        mean_file << boost::str(boost::format("# variance = %.9f\n") % variance);
+        mean_file << boost::str(boost::format("# tree length = %.9f\n") % mean_tree.calcTreeLength());
+        mean_file << boost::str(boost::format("# iterations = %d\n") % number_of_iterations);
+        string rscript;
+        double hpd_lower;
+        double hpd_upper;
+        double radius;
+        rPlotDists(bhvdists, rscript, radius, hpd_lower, hpd_upper, 0.95);
+        mean_file << boost::str(boost::format("# q25 = %.9f\n") % _kde_q25);
+        mean_file << boost::str(boost::format("# q75 = %.9f\n") % _kde_q75);
+        mean_file << boost::str(boost::format("# IQR = %.9f\n") % (_kde_q75 - _kde_q25));
+        mean_file << boost::str(boost::format("# KDE sigma = %.9f\n") % _kde_sigma);
+        mean_file << boost::str(boost::format("# KDE bandwidth = %.9f\n") % _kde_bandwidth);
+        mean_file << boost::str(boost::format("# 95%% HPD lower = %.9f\n") % hpd_lower);
+        mean_file << boost::str(boost::format("# 95%% HPD upper = %.9f\n") % hpd_upper);
+        mean_file << boost::str(boost::format("# 95%% radius = %.9f\n") % radius);
+        mean_file << "\n" << rscript << endl;
+        mean_file.close();
+
+        if (!_quiet) {
+            cout << boost::str(format("%d iterations required (of %d max. iterations):") % number_of_iterations % _frechet_k) << endl;
+            cout << "Mean tree:" << endl;
+            cout << mean_tree.makeNewick(9, true) << endl;
+            cout << "Variance = " << variance << endl;
+            cout << "Tree length = " << setprecision(ndecimals) << mean_tree.calcTreeLength() << endl;
+        }
+
+        if (!_quiet)
+            cout << "Done." << endl;
+    }
+
+    inline void OP::run() {
+        try {
+            int ndecimals = static_cast<int>(_precision);
+            bool move_along_path = static_cast<bool>(_lambda >= 0.0 && _lambda <= 1.0);
+
+            // Read in trees
+            _tree_summary = std::make_shared<TreeSummary>();
+            unsigned which_treefile = 0;
+            unsigned ntrees = 0;
+            unsigned ntrees_prev = 0;
+            for (auto fn : _tree_file_names) {
+                // Assume that the tree file is in Nexus format
+                _tree_summary->readTreefile(fn, _skip[which_treefile], _scale_by[which_treefile]);
+                ntrees = _tree_summary->getNumTrees();
+                if (ntrees - ntrees_prev == 0) {
+                    // Failed to read any trees, so file may not be in Nexus format
+                    // Assume next that the file is in RevBayes format
+                    _tree_summary->readRevBayesTreefile(fn, _skip[which_treefile], _scale_by[which_treefile]);
+                    ntrees = _tree_summary->getNumTrees();
+                }
+                ntrees_prev = ntrees;
+                ++which_treefile;
+            }
+
+            if (ntrees < 2) {
+                // Either no trees were in the specified tree file, or the file was in neither Nexus nor RevBayes format
+                throw Xop("Must input at least 2 trees to compute tree distances");
+            }
+
+#if defined(DEBUGGING)
+            if (_output_for_gtp) {
+                if (!_quiet)
+                    cout << "Writing trees in newick format to file \"trees-for-gtp.txt\"" << endl;
+
+                ofstream gtpf("trees-for-gtp.txt");
+                for (unsigned i = 0; i < ntrees; ++i) {
+                    gtpf << _tree_summary->getNewick(i) << ";\n";
+                }
+                gtpf.close();
+
+                // If output for gtp was requested, then that is all
+                // we try to do on this run
+                if (!_quiet)
+                    cout << "Done." << endl;
+                return;
+            }
+#endif
+
+            if (move_along_path) {
+                if (!_quiet)
+                    cout << "Computing tree at lambda = " << setprecision(ndecimals) << _lambda << "..." << endl;
+
+                if (_tree_summary->getNumTrees() < 2) {
+                    throw Xop("Must input at least 2 trees to compute tree at a particular lambda value");
+                }
+
+                TreeManip starttm;
+                buildTree(0, starttm);
+
+                TreeManip endtm;
+                buildTree(1, endtm);
+
+                displaceTreeAlongGeodesic(starttm, endtm, _lambda);
+
+                // Save the tree at _lambda from the starting tree toward the ending tree
+                string fn = boost::str(format("tree-at-lambda-%.5f.txt") % _lambda);
+                ofstream middle_file(fn);
+                middle_file << starttm.makeNewick(9, true) << endl;
+                middle_file << "# lambda = " << setprecision(ndecimals) << _lambda << endl;
+                middle_file.close();
+
+                if (!_quiet) {
+                    cout << "Tree at lambda = " << setprecision(ndecimals) << _lambda << ":" << endl;
+                    cout << starttm.makeNewick(9, true) << endl;
+                }
+
+                return;
+            }
+
+            if (_pairwise) {
+                calcPairwise();
+                return;
+            }
+
+            if (_frechet_mean) {
+                calcFrechetMean();
+                return;
+            }
+
+            // Compute the geodesic distance between the first tree and all others
+            if (_refdist) {
+                if (!_quiet)
+                    cout << "Writing geodesic distances to file \"bhvdists.txt\"" << endl;
+                ofstream outf("bhvdists.txt");
+#if defined(CLUSTER_DISTANCE)
+                outf << "tree\tgeodesic\tcluster" << endl;
+#else
+                outf << "tree\tgeodesic" << endl;
+#endif
+                TreeManip starttm;
+                buildTree(0, starttm);
+                for (unsigned i = 1; i < ntrees; i++) {
+                    TreeManip endtm;
+                    buildTree(i, endtm);
+                    vector<Split::treeid_pair_t> ABpairs;
+                    vector<Split::split_pair_t> commonPairs;
+                    vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+                    double bhvdist = calcBHVDistance(starttm, endtm, in_pairs, ABpairs, commonPairs);
+#if defined(CLUSTER_DISTANCE)
+                    double clusterdist = calcClusterDistance(starttm, endtm, in_pairs, commonPairs);
+                    outf << (i+1) << '\t' << setprecision(ndecimals) << bhvdist << '\t' << setprecision(ndecimals) << clusterdist << '\n';
+#else
+                    outf << (i+1) << '\t' << setprecision(ndecimals) << bhvdist << '\n';
+#endif
+                }
+                outf.close();
+            }
 
 #if defined(OLD_KF_CODE)
-        if (!_quiet)
-            cout << "Writing KF distances to file \"kfdists.txt\"" << endl;
-        ofstream outf("kfdists.txt");
-        outf << "tree distance to tree 1" << endl;
-        for (unsigned i = 1; i < ntrees; i++) {
-            double kfss = calcKFDistance(0, i);
-            double kfdist = sqrt(kfss);
-            outf << str(format("%d\t%.5f") % (i+1) % kfdist) << endl;
-        }
-        outf.close();
+            if (!_quiet)
+                cout << "Writing KF distances to file \"kfdists.txt\"" << endl;
+            ofstream outf("kfdists.txt");
+            outf << "tree distance to tree 1" << endl;
+            for (unsigned i = 1; i < ntrees; i++) {
+                double kfss = calcKFDistance(0, i);
+                double kfdist = sqrt(kfss);
+                outf << str(format("%d\t%.5f") % (i+1) % kfdist) << endl;
+            }
+            outf.close();
 #endif
-    }
-    catch (Xop & x) {
-        cerr << "OP encountered a problem:\n  " << x.what() << endl;
         }
-}
+        catch (Xop & x) {
+            cerr << "OP encountered a problem:\n  " << x.what() << endl;
+            }
+    }
 
 } // namespace op

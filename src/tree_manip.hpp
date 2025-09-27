@@ -303,7 +303,9 @@ namespace op {
             // Node name could not be converted to an integer value
             // Assume node name is an actual taxon name
             try {
-                x = _taxon_map.at(nd->_name);
+                string taxon_name = nd->_name;
+                string no_underscores = std::regex_replace(taxon_name, std::regex("_"), " ");
+                x = _taxon_map.at(no_underscores);
             } catch(out_of_range &) {
                 // Add this taxon name to _taxon_names and _taxon_map
                 x = (unsigned)_taxon_names.size();

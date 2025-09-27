@@ -27,8 +27,8 @@ namespace op
                                         ~TreeSummary();
 
             string                      scaleEdgeLengths(const string & newick, bool rooted, double scaler);
-            void                        readRevBayesTreefile(const string filename, unsigned skip, double scaler, bool noscale_first);
-            void                        readTreefile(const string filename, unsigned skip, double scaler, bool noscale_first);
+            void                        readRevBayesTreefile(const string filename, unsigned skip, double scaler);
+            void                        readTreefile(const string filename, unsigned skip, double scaler);
             //void                        showSummary() const;
             unsigned                    getNumTrees() const;
             typename Tree::SharedPtr    getTree(unsigned index);
@@ -100,7 +100,7 @@ inline string TreeSummary::scaleEdgeLengths(const string & newick, bool rooted, 
     return tm.makeNewick(9, false);
 }
 
-inline void TreeSummary::readRevBayesTreefile(const string filename, unsigned skip, double scaler, bool noscale_first) {
+inline void TreeSummary::readRevBayesTreefile(const string filename, unsigned skip, double scaler) {
     ifstream inf(filename.c_str());
     stringstream buffer;
     buffer << inf.rdbuf();
@@ -147,7 +147,7 @@ inline void TreeSummary::readRevBayesTreefile(const string filename, unsigned sk
             //    true     not 1.0       false        false
             //    true     not 1.0        true        true
             //   false     not 1.0        true        false
-            bool do_scale = static_cast<bool>((scaler != 1.0) && (!noscale_first || t > skip));
+            bool do_scale = static_cast<bool>(scaler != 1.0); // && (!noscale_first || t > skip));
 
             if (do_scale) {
                 _newicks.emplace_back(scaleEdgeLengths(newick, true, scaler)); //TODO:trees may be unrooted, right?
@@ -160,7 +160,7 @@ inline void TreeSummary::readRevBayesTreefile(const string filename, unsigned sk
     }
 }
 
-inline void TreeSummary::readTreefile(const string filename, unsigned skip, double scaler, bool noscale_first)
+inline void TreeSummary::readTreefile(const string filename, unsigned skip, double scaler)
     {
     TreeManip tm;
     Split::treeid_t splitset;
@@ -188,19 +188,30 @@ inline void TreeSummary::readTreefile(const string filename, unsigned skip, doub
     int numTaxaBlocks = nexusReader.GetNumTaxaBlocks();
     for (int i = 0; i < numTaxaBlocks; ++i)
         {
-        clear();
+        //clear();
         NxsTaxaBlock * taxaBlock = nexusReader.GetTaxaBlock(i);
         string taxaBlockTitle = taxaBlock->GetTitle();
 
-        // Copy taxon labels into static TreeManip::_taxon_names vector
-        TreeManip::_taxon_names.resize(taxaBlock->GetNumTaxonLabels());
-        TreeManip::_taxon_map.clear();
-        for (unsigned j = 0; j < TreeManip::_taxon_names.size(); ++j) {
-            string taxon_name = taxaBlock->GetTaxonLabel(j);
-            TreeManip::_taxon_names[j] = taxon_name;
-            TreeManip::_taxon_map[taxon_name] = j;
+        if (TreeManip::_taxon_names.empty()) {
+            // Copy taxon labels into static TreeManip::_taxon_names vector
+            TreeManip::_taxon_names.resize(taxaBlock->GetNumTaxonLabels());
+            TreeManip::_taxon_map.clear();
+            for (unsigned j = 0; j < TreeManip::_taxon_names.size(); ++j) {
+                string taxon_name = taxaBlock->GetTaxonLabel(j);
+                TreeManip::_taxon_names[j] = taxon_name;
+                TreeManip::_taxon_map[taxon_name] = j;
+            }
+            assert(taxaBlock->GetNumActiveTaxa() == TreeManip::_taxon_names.size());
         }
-        assert(taxaBlock->GetNumActiveTaxa() == TreeManip::_taxon_names.size());
+        else {
+            // Check that taxon labels in taxa block match those in TreeManip::_taxon_names
+            for (unsigned j = 0; j < taxaBlock->GetNumTaxonLabels(); ++j) {
+                string taxon_name = taxaBlock->GetTaxonLabel(j);
+                if (TreeManip::_taxon_names[j] != taxon_name) {
+                    throw Xop("Taxon labels in taxa block do not match those from a previous taxa block");
+                }
+            }
+        }
 
         const unsigned nTreesBlocks = nexusReader.GetNumTreesBlocks(taxaBlock);
         for (unsigned j = 0; j < nTreesBlocks; ++j)
@@ -251,7 +262,7 @@ inline void TreeSummary::readTreefile(const string filename, unsigned skip, doub
                     //    true     not 1.0       false        false
                     //    true     not 1.0        true        true
                     //   false     not 1.0        true        false
-                    bool do_scale = static_cast<bool>((scaler != 1.0) && (!noscale_first || t > skip));
+                    bool do_scale = static_cast<bool>(scaler != 1.0); // && (!noscale_first || t > skip));
 
                     if (do_scale) {
                         _newicks.push_back(scaleEdgeLengths(newick, is_rooted, scaler));

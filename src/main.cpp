@@ -21,6 +21,7 @@ using namespace std;
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/math/special_functions/gamma.hpp>
 
+#include "conditionals.hpp"
 #include "split.hpp"
 #include "node.hpp"
 #include "tree.hpp"
