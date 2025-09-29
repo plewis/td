@@ -30,6 +30,7 @@ using namespace std;
 #include "opvertex.hpp"
 #include "xop.hpp"
 #include "lot.hpp"
+#include "lapjv.hpp"
 #include "op.hpp"
 
 using namespace op;

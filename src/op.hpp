@@ -15,12 +15,18 @@ namespace op {
 
     private:
 
+        void readTrees();
+        void moveAlongPath();
+        void calcDistanceToReference();
+        void calcFrechetMean();
+        void calcPairwise();
+
+#if defined(TESTKDE)
         void testKDE();
+#endif
         void calcBandWidth(const vector<double> & sample);
         double kernelDensity(double x, const vector<double> & sample) const;
         void rPlotDists(vector<double> & dists, string & rscript, double & radius, double & hpd_lower, double & hpd_upper, double hpd_level);
-        void calcFrechetMean();
-        void calcPairwise();
         void buildTree(unsigned tree_index, TreeManip & tm) const;
         double calcBHVDistance(
             TreeManip & starttm,
@@ -89,7 +95,7 @@ namespace op {
         double opCalcGeodesicDist(
             vector<Split::treeid_pair_t> & ABpairs) const;
 
-        bool                    _quiet;
+        bool                    _noisy;
         bool                    _output_for_gtp;
         string                  _prefix;
         bool                    _pairwise;
@@ -124,7 +130,7 @@ namespace op {
     };
 
     inline OP::OP() :
-        _quiet(true),
+        _noisy(false),
         _output_for_gtp(false),
         _prefix("outfile"),
         _pairwise(false),
@@ -147,7 +153,7 @@ namespace op {
     inline OP::~OP() = default;
 
     inline void OP::clear() {
-        _quiet = true;
+        _noisy = false;
         _output_for_gtp = false;
         _prefix = "outfile";
         _pairwise = false;
@@ -169,6 +175,7 @@ namespace op {
         desc.add_options()
             ("help,h", "produce help message")
             ("version,v", "show program version")
+            ("noisy", "show a lot of output (default: no)")
             ("treefile,t",  program_options::value(&_tree_file_names), "name of data file in NEXUS format (required, no default)")
             ("skip", program_options::value(&_skip), "number of trees to skip in specified treefile (default: 0)")
             ("precision", program_options::value(&_precision)->default_value(9), "number of digits precision to use in outputting distances (default: 9)")
@@ -180,20 +187,22 @@ namespace op {
             ("frechet-e,e", program_options::value(&_frechet_epsilon), "successive Frechet mean approximations must all be this close to stop iterating (default: 0.00001)")
             ("frechet-n,n", program_options::value(&_frechet_n), "number of successive Frechet mean approximations to use for determining whether to stop iterating (default: 10)")
             ("frechet-k,k", program_options::value(&_frechet_k), "maximum number of Frechet mean iterations (default:1000000)")
-            ("quiet,q", program_options::value(&_quiet), "suppress all output except for errors (default: yes)")
             ("seed", program_options::value(&_random_number_seed), "pseudorandom number generator seed (used only when estimating mean tree)")
             ("scale", program_options::value(&_scale_by), "rescale all input trees by this multiplicative factor (default: 1.0)")
-#if defined(DEBUGGING)
-            ("gtptest", program_options::value(&_output_for_gtp)->default_value(false), "output treefile that can be read by Owens-Provan GTP program")
+#if defined(TESTKDE)
+            ("testkde", "test kernel density estimation")
 #endif
-            ;
+#if defined(DEBUGGING)
+("gtptest", program_options::value(&_output_for_gtp)->default_value(false), "output treefile that can be read by Owens-Provan GTP program")
+#endif
+;
         program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
         try {
             const program_options::parsed_options & parsed = program_options::parse_config_file< char >("op.conf", desc, false);
             program_options::store(parsed, vm);
         }
         catch(program_options::reading_file &) {
-            if (!_quiet) {
+            if (_noisy) {
                 cout << "Note: configuration file (op.conf) not found" << endl;
             }
         }
@@ -211,16 +220,23 @@ namespace op {
             exit(0);
         }
 
+        // If the user specified --noisy on the command line, set _noisy to true
+        if (vm.count("noisy") > 0) {
+            _noisy = true;
+        }
+
+#if defined(TESTKDE)
         // If the user specified --testkde on the command line, run testKDE() and quit
         if (vm.count("testkde") > 0) {
             testKDE();
             exit(0);
         }
+#endif
 
         // If the user failed to specify --treefile on the command line, bail out because a treefile is needed for
         // anything except help and version
         if (vm.count("treefile") == 0) {
-            cout << "You must specify a treefile if doing anything except --help, --version, or --testkde" << endl;
+            cout << "You must specify a treefile if doing anything except --help or --version" << endl;
             exit(1);
         }
 
@@ -230,7 +246,7 @@ namespace op {
         }
 
         // If the user specified --frechet on the command line, set _frechet_mean to true
-        if (vm.count("frechet") > 0) {
+        if (vm.count("frechetmean") > 0) {
             _frechet_mean = true;
         }
 
@@ -245,10 +261,10 @@ namespace op {
         }
 
         // Sanity check
-        bool ok = ( _pairwise && !_frechet_mean && !_refdist);
-        ok     |= (!_pairwise &&  _frechet_mean && !_refdist);
-        ok     |= (!_pairwise && !_frechet_mean &&  _refdist);
-        ok     |= (!_pairwise && !_frechet_mean && !_refdist && _lambda > 0.0 && _lambda < 1.0);
+        bool ok = ( _pairwise && !_frechet_mean && !_refdist && _lambda < 0.0);                     // only pairwise chosen
+        ok     |= (!_pairwise &&  _frechet_mean && !_refdist && _lambda < 0.0);                     // only frechet mean chosen
+        ok     |= (!_pairwise && !_frechet_mean &&  _refdist && _lambda < 0.0);                     // only refdist chosen
+        ok     |= (!_pairwise && !_frechet_mean && !_refdist && _lambda > 0.0 && _lambda < 1.0);    // only lambda chosen
 
         if (!ok) {
             cerr << "Sorry, you can only do one of these things during a single run: " << endl;
@@ -291,7 +307,7 @@ namespace op {
                 const Split::treeid_t & Alvs,
                 const Split::treeid_t & Blvs,
                 vector<Split::split_pair_t> & commonPairs) const {
-        if (!_quiet) {
+        if (_noisy) {
             cout << "Leaves from starting tree:" << endl;
             for (auto & a : Alvs) {
                 cout << "  " << a.createPatternRepresentation(true) << endl;
@@ -314,7 +330,7 @@ namespace op {
             commonPairs.emplace_back(*it, b);
         }
 
-        if (!_quiet)
+        if (_noisy)
             cout << str(format("\nLeaf contribution (squared) = %.9f") % leaf_contribution_squared) << endl;
         return leaf_contribution_squared;
     }
@@ -379,7 +395,7 @@ namespace op {
             }
         }
 
-        if (!_quiet) {
+        if (_noisy) {
             cout << "\nCommon edges:" << endl;
             for (auto & s : common_edges) {
                 cout << "  " << s.createPatternRepresentation() << endl;
@@ -457,7 +473,7 @@ namespace op {
                 out_pairs.emplace_back(a_common_splits, b_common_splits);
                 out_pairs.emplace_back(a_other_splits, b_other_splits);
 
-                if (!_quiet) {
+                if (_noisy) {
                     cout << "\nSplitting trees at common split: " << common.createPatternRepresentation() << endl;
                     cout << "  Left subtree above common split:" << endl;
                     for (auto & asplit : a_common_splits) {
@@ -1253,7 +1269,7 @@ namespace op {
             //   ||A1||/(||A1|| + ||B1||)
             // The point at which A2 edges become 0 is
             //   ||A2||/(||A2|| + ||B2||)
-            opEdmondsKarp(source, sink, avect, bvect, AB1.first, AB2.first, AB1.second, AB2.second, _quiet);
+            opEdmondsKarp(source, sink, avect, bvect, AB1.first, AB2.first, AB1.second, AB2.second, _noisy);
 
             // if (!quiet) {
             //     cout << "\nResults:" << endl;
@@ -1276,7 +1292,7 @@ namespace op {
             bool P2 = C1len/D1len < C2len/D2len;
             success = !A_is_trivial && !B_is_trivial && P2;
 
-            if (!_quiet) {
+            if (_noisy) {
                 if (success) {
                     cout << "\nSuccessfully refined support:" << endl;
                 }
@@ -1379,7 +1395,7 @@ namespace op {
             double ratio = dropped_length/added_length;
             geodesic_distance += pow(dropped_length + added_length, 2);
 
-            if (!_quiet) {
+            if (_noisy) {
                 cout << str(format("\nRatio %d: %.9f") % ratio_index % ratio) << endl;
                 cout << "  Edges dropped:" << endl;
                 for (auto & a : AB.first) {
@@ -1432,7 +1448,7 @@ namespace op {
             }
         }
 
-        if (!_quiet) {
+        if (_noisy) {
             cout << "Internal splits from starting tree:" << endl;
             for (const auto& a : A) {
                 cout << "  " << a.createPatternRepresentation(true) << endl;
@@ -1456,7 +1472,7 @@ namespace op {
             }
         }
 
-        if (!_quiet) {
+        if (_noisy) {
             cout << "Internal splits from ending tree:" << endl;
             for (const auto& b : B) {
                 cout << "  " << b.createPatternRepresentation(true) << endl;
@@ -1483,12 +1499,12 @@ namespace op {
         unsigned pair_index = 1;
         vector<double> geodesic_distances;
         for (const auto & inpair : in_pairs) {
-            if (!_quiet)
+            if (_noisy)
                 cout << str(format("\nTree pair %d (of %d)") % pair_index % in_pairs.size()) << endl;
 
             ABpairs.push_back(inpair);
 
-            if (!_quiet) {
+            if (_noisy) {
                 cout << "  A splits:" << endl;
                 for (const auto& a : ABpairs[0].first) {
                     cout << "    " << a.createPatternRepresentation(true) << endl;
@@ -1502,14 +1518,14 @@ namespace op {
 
             double L = opCalcGeodesicDist(ABpairs);
 
-            if (!_quiet)
+            if (_noisy)
                 cout << str(format("  L for tree pair %d = %.9f") % pair_index % L) << endl;
 
             geodesic_distances.push_back(L);
             ++pair_index;
         }
 
-        if (!_quiet)
+        if (_noisy)
             cout << endl;
 
         // Calculate total geodesic distance
@@ -1521,7 +1537,7 @@ namespace op {
         total_geodesic_distance += common_edge_contribution_squared;
         total_geodesic_distance = sqrt(total_geodesic_distance);
 
-        if (!_quiet)
+        if (_noisy)
             cout << str(format("Total geodesic distance = %.9f") % total_geodesic_distance) << endl;
 
         return total_geodesic_distance;
@@ -1537,11 +1553,13 @@ namespace op {
         // in_pairs.first holds the unique splits in the first input tree
         // in_pairs.second holds the unique splits in the second input tree
         assert(in_pairs.size() == 1);
-        double mci_score = 0.0;
-        double total_entropy = 0.0;
-        if (!_quiet) {
+        if (_noisy) {
             cerr << "\n********** calcClusterDistance **********" << endl;
         }
+
+        // Calculate mci_score of common splits
+        double mci_score = 0.0;
+        double total_entropy = 0.0;
         for (const auto & s : commonPairs) {
             unsigned nbits = s.first.getNumBitsSet();
             unsigned nlvs = s.first.getSize();
@@ -1550,15 +1568,49 @@ namespace op {
                 total_entropy += h;
                 double I = s.first.mutualClusteringInfo(s.first);
                 mci_score += I;
-                if (!_quiet) {
+                if (_noisy) {
                     cerr << "  common pair:  " << s.first.createPatternRepresentation() << " (h = " << h << ", I = " << I << ", mci_score = " << mci_score << ")" << endl;
                 }
             }
         }
 
+        // Create a cost matrix with A splits as rows and B splits as columns
         auto Asplits = in_pairs[0].first;
         auto Bsplits = in_pairs[0].second;
 
+#if 1
+        auto nAsplits = static_cast<unsigned>(Asplits.size());
+        auto nBsplits = static_cast<unsigned>(Bsplits.size());
+        assert(nAsplits == nBsplits);
+        LAPJV lapjv(nAsplits);
+        int i = 0;
+        int j = 0;
+        vector<double> entropyAsplits(nAsplits);
+        vector<double> entropyBsplits(nBsplits);
+        for (const auto & b : Bsplits) {
+            entropyBsplits[j++] = b.entropy();
+        }
+        for (const auto & a : Asplits) {
+            entropyAsplits[i] = a.entropy();
+            j = 0;
+            for (const auto & b : Bsplits) {
+                double mci = a.mutualClusteringInfo(b);
+                lapjv.assignCost(i, j, -mci);
+                ++j;
+            }
+            ++i;
+        }
+        double total_cost = lapjv.lap();
+        mci_score -= total_cost;
+
+        vector<unsigned> optimal_pairings;
+        lapjv.getOptimalPairings(optimal_pairings);
+        for (unsigned i = 0; i < optimal_pairings.size(); ++i) {
+            unsigned j = optimal_pairings[i];
+            total_entropy += entropyAsplits[i];
+            total_entropy += entropyBsplits[j];
+        }
+#else
         // Each element of the pairings vector is a 4-tuple;
         // 1. mci
         // 2. ha + hb
@@ -1602,10 +1654,11 @@ namespace op {
                 cerr << "  ------------: " << mci << ": " << a.createPatternRepresentation() << " <--> " << b.createPatternRepresentation() << " (h = " << h << ")" << endl;
             }
         }
+#endif
 
         double max_value = total_entropy/2.0;
         double d = (max_value - mci_score)/max_value;
-        if (!_quiet) {
+        if (_noisy) {
             cerr << "max_value = " << max_value << endl;
             cerr << "mci_score = " << mci_score << endl;
             cerr << "distance = " << d << endl;
@@ -1863,6 +1916,7 @@ namespace op {
         return k;
     }
 
+#if defined(TESTKDE)
     inline void OP::testKDE() {
         // Initialize pseudorandom number generator
         Lot lot;
@@ -1921,6 +1975,7 @@ namespace op {
 
         cerr << "File \"kde_test.R\" has been saved." << endl;
     }
+#endif
 
     inline void OP::calcBandWidth(const vector<double> & sample) {
         // Assumes sample is already sorted from lowest to highest value
@@ -2062,7 +2117,7 @@ namespace op {
     inline void OP::calcPairwise() {
         unsigned ntrees = _tree_summary->getNumTrees();
 
-        if (!_quiet)
+        if (_noisy)
             cout << "Computing pairwise distance matrix..." << endl;
 
         double dist_matrix[ntrees][ntrees];
@@ -2117,15 +2172,47 @@ namespace op {
         distf << "#plot(mapping, asp=1, ann=F, axes=F, col=\"navy\", pch=16)" << endl;
         distf.close();
 
-        if (!_quiet)
+        if (_noisy)
             cout << "Done." << endl;
+    }
+
+    inline void OP::calcDistanceToReference() {
+        if (_noisy)
+            cout << "Writing geodesic distances to file \"bhvdists.txt\"" << endl;
+
+        int ndecimals = static_cast<int>(_precision);
+        unsigned ntrees = _tree_summary->getNumTrees();
+        string fn = _prefix + ".txt";
+        ofstream outf(fn);
+#if defined(CLUSTER_DISTANCE)
+        outf << "tree\tgeodesic\tcluster" << endl;
+#else
+        outf << "tree\tgeodesic" << endl;
+#endif
+        TreeManip starttm;
+        buildTree(0, starttm);
+        for (unsigned i = 1; i < ntrees; i++) {
+            TreeManip endtm;
+            buildTree(i, endtm);
+            vector<Split::treeid_pair_t> ABpairs;
+            vector<Split::split_pair_t> commonPairs;
+            vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+            double bhvdist = calcBHVDistance(starttm, endtm, in_pairs, ABpairs, commonPairs);
+#if defined(CLUSTER_DISTANCE)
+            double clusterdist = calcClusterDistance(starttm, endtm, in_pairs, commonPairs);
+            outf << (i+1) << '\t' << setprecision(ndecimals) << bhvdist << '\t' << setprecision(ndecimals) << clusterdist << '\n';
+#else
+            outf << (i+1) << '\t' << setprecision(ndecimals) << bhvdist << '\n';
+#endif
+        }
+        outf.close();
     }
 
     inline void OP::calcFrechetMean() {
         int ndecimals = static_cast<int>(_precision);
         unsigned ntrees = _tree_summary->getNumTrees();
         TreeManip mean_tree;
-        if (!_quiet)
+        if (_noisy)
             cout << "Computing Frechet mean tree..." << endl;
 
         // Compute the mean
@@ -2170,7 +2257,7 @@ namespace op {
         mean_file << "\n" << rscript << endl;
         mean_file.close();
 
-        if (!_quiet) {
+        if (_noisy) {
             cout << boost::str(format("%d iterations required (of %d max. iterations):") % number_of_iterations % _frechet_k) << endl;
             cout << "Mean tree:" << endl;
             cout << mean_tree.makeNewick(9, true) << endl;
@@ -2178,86 +2265,108 @@ namespace op {
             cout << "Tree length = " << setprecision(ndecimals) << mean_tree.calcTreeLength() << endl;
         }
 
-        if (!_quiet)
+        if (_noisy)
             cout << "Done." << endl;
     }
 
-    inline void OP::run() {
-        try {
-            int ndecimals = static_cast<int>(_precision);
-            bool move_along_path = static_cast<bool>(_lambda >= 0.0 && _lambda <= 1.0);
+    inline void OP::readTrees() {
+        int ndecimals = static_cast<int>(_precision);
 
-            // Read in trees
-            _tree_summary = std::make_shared<TreeSummary>();
-            unsigned which_treefile = 0;
-            unsigned ntrees = 0;
-            unsigned ntrees_prev = 0;
-            for (auto fn : _tree_file_names) {
-                // Assume that the tree file is in Nexus format
-                _tree_summary->readTreefile(fn, _skip[which_treefile], _scale_by[which_treefile]);
+        // Read in trees
+        _tree_summary = std::make_shared<TreeSummary>();
+        unsigned which_treefile = 0;
+        unsigned ntrees = 0;
+        unsigned ntrees_prev = 0;
+        for (auto fn : _tree_file_names) {
+            // Assume that the tree file is in Nexus format
+            _tree_summary->readTreefile(fn, _skip[which_treefile], _scale_by[which_treefile]);
+            ntrees = _tree_summary->getNumTrees();
+            if (ntrees - ntrees_prev == 0) {
+                // Failed to read any trees, so file may not be in Nexus format
+                // Assume next that the file is in RevBayes format
+                _tree_summary->readRevBayesTreefile(fn, _skip[which_treefile], _scale_by[which_treefile]);
                 ntrees = _tree_summary->getNumTrees();
-                if (ntrees - ntrees_prev == 0) {
-                    // Failed to read any trees, so file may not be in Nexus format
-                    // Assume next that the file is in RevBayes format
-                    _tree_summary->readRevBayesTreefile(fn, _skip[which_treefile], _scale_by[which_treefile]);
-                    ntrees = _tree_summary->getNumTrees();
-                }
-                ntrees_prev = ntrees;
-                ++which_treefile;
             }
+            ntrees_prev = ntrees;
+            ++which_treefile;
+        }
 
-            if (ntrees < 2) {
-                // Either no trees were in the specified tree file, or the file was in neither Nexus nor RevBayes format
-                throw Xop("Must input at least 2 trees to compute tree distances");
-            }
+        if (ntrees < 2) {
+            // Either no trees were in the specified tree file, or the file was in neither Nexus nor RevBayes format
+            throw Xop("Must input at least 2 trees to compute tree distances");
+        }
+    }
+
+    inline void OP::moveAlongPath() {
+        int ndecimals = static_cast<int>(_precision);
+        if (_noisy)
+            cout << "Computing tree at lambda = " << setprecision(ndecimals) << _lambda << "..." << endl;
+
+        if (_tree_summary->getNumTrees() < 2) {
+            throw Xop("Must input at least 2 trees to compute tree at a particular lambda value");
+        }
+
+        TreeManip starttm;
+        buildTree(0, starttm);
+
+        TreeManip endtm;
+        buildTree(1, endtm);
+
+        displaceTreeAlongGeodesic(starttm, endtm, _lambda);
+
+        // Save the tree at _lambda from the starting tree toward the ending tree
+        string fn = boost::str(format("tree-at-lambda-%.5f.txt") % _lambda);
+        ofstream middle_file(fn);
+        middle_file << starttm.makeNewick(9, true) << endl;
+        middle_file << "# lambda = " << setprecision(ndecimals) << _lambda << endl;
+        middle_file.close();
+
+        if (_noisy) {
+            cout << "Tree at lambda = " << setprecision(ndecimals) << _lambda << ":" << endl;
+            cout << starttm.makeNewick(9, true) << endl;
+        }
+    }
 
 #if defined(DEBUGGING)
-            if (_output_for_gtp) {
-                if (!_quiet)
-                    cout << "Writing trees in newick format to file \"trees-for-gtp.txt\"" << endl;
+    inline void OP::outputForGTP() {
+        if (_output_for_gtp) {
+            if (!_quiet)
+                cout << "Writing trees in newick format to file \"trees-for-gtp.txt\"" << endl;
 
-                ofstream gtpf("trees-for-gtp.txt");
-                for (unsigned i = 0; i < ntrees; ++i) {
-                    gtpf << _tree_summary->getNewick(i) << ";\n";
-                }
-                gtpf.close();
-
-                // If output for gtp was requested, then that is all
-                // we try to do on this run
-                if (!_quiet)
-                    cout << "Done." << endl;
-                return;
+            ofstream gtpf("trees-for-gtp.txt");
+            for (unsigned i = 0; i < ntrees; ++i) {
+                gtpf << _tree_summary->getNewick(i) << ";\n";
             }
+            gtpf.close();
+
+            // If output for gtp was requested, then that is all
+            // we try to do on this run
+            if (!_quiet)
+                cout << "Done." << endl;
+            return;
+        }
+    }
 #endif
 
-            if (move_along_path) {
-                if (!_quiet)
-                    cout << "Computing tree at lambda = " << setprecision(ndecimals) << _lambda << "..." << endl;
+#if defined(OLD_KF_CODE)
+    if (!_quiet)
+        cout << "Writing KF distances to file \"kfdists.txt\"" << endl;
+    ofstream outf("kfdists.txt");
+    outf << "tree distance to tree 1" << endl;
+    for (unsigned i = 1; i < ntrees; i++) {
+        double kfss = calcKFDistance(0, i);
+        double kfdist = sqrt(kfss);
+        outf << str(format("%d\t%.5f") % (i+1) % kfdist) << endl;
+    }
+    outf.close();
+#endif
 
-                if (_tree_summary->getNumTrees() < 2) {
-                    throw Xop("Must input at least 2 trees to compute tree at a particular lambda value");
-                }
+    inline void OP::run() {
+        try {
+            readTrees();
 
-                TreeManip starttm;
-                buildTree(0, starttm);
-
-                TreeManip endtm;
-                buildTree(1, endtm);
-
-                displaceTreeAlongGeodesic(starttm, endtm, _lambda);
-
-                // Save the tree at _lambda from the starting tree toward the ending tree
-                string fn = boost::str(format("tree-at-lambda-%.5f.txt") % _lambda);
-                ofstream middle_file(fn);
-                middle_file << starttm.makeNewick(9, true) << endl;
-                middle_file << "# lambda = " << setprecision(ndecimals) << _lambda << endl;
-                middle_file.close();
-
-                if (!_quiet) {
-                    cout << "Tree at lambda = " << setprecision(ndecimals) << _lambda << ":" << endl;
-                    cout << starttm.makeNewick(9, true) << endl;
-                }
-
+            if (_lambda >= 0.0 && _lambda <= 1.0) {
+                moveAlongPath();
                 return;
             }
 
@@ -2273,45 +2382,11 @@ namespace op {
 
             // Compute the geodesic distance between the first tree and all others
             if (_refdist) {
-                if (!_quiet)
-                    cout << "Writing geodesic distances to file \"bhvdists.txt\"" << endl;
-                ofstream outf("bhvdists.txt");
-#if defined(CLUSTER_DISTANCE)
-                outf << "tree\tgeodesic\tcluster" << endl;
-#else
-                outf << "tree\tgeodesic" << endl;
-#endif
-                TreeManip starttm;
-                buildTree(0, starttm);
-                for (unsigned i = 1; i < ntrees; i++) {
-                    TreeManip endtm;
-                    buildTree(i, endtm);
-                    vector<Split::treeid_pair_t> ABpairs;
-                    vector<Split::split_pair_t> commonPairs;
-                    vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
-                    double bhvdist = calcBHVDistance(starttm, endtm, in_pairs, ABpairs, commonPairs);
-#if defined(CLUSTER_DISTANCE)
-                    double clusterdist = calcClusterDistance(starttm, endtm, in_pairs, commonPairs);
-                    outf << (i+1) << '\t' << setprecision(ndecimals) << bhvdist << '\t' << setprecision(ndecimals) << clusterdist << '\n';
-#else
-                    outf << (i+1) << '\t' << setprecision(ndecimals) << bhvdist << '\n';
-#endif
-                }
-                outf.close();
+                calcDistanceToReference();
+                return;
             }
 
-#if defined(OLD_KF_CODE)
-            if (!_quiet)
-                cout << "Writing KF distances to file \"kfdists.txt\"" << endl;
-            ofstream outf("kfdists.txt");
-            outf << "tree distance to tree 1" << endl;
-            for (unsigned i = 1; i < ntrees; i++) {
-                double kfss = calcKFDistance(0, i);
-                double kfdist = sqrt(kfss);
-                outf << str(format("%d\t%.5f") % (i+1) % kfdist) << endl;
-            }
-            outf.close();
-#endif
+            cerr << "OP was not asked to do anything with the trees in the specified treefile!" << endl;
         }
         catch (Xop & x) {
             cerr << "OP encountered a problem:\n  " << x.what() << endl;
