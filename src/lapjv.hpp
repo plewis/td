@@ -237,7 +237,7 @@ namespace op {
                 usubmin = numeric_limits<double>::max();
                 for (j = 1; j < _dim; j++) {
                     h = _assigncost[i][j] - _v[j];
-                    if (h < usubmin)
+                    if (h < usubmin) {  // POL added {
                         if (h >= umin) {
                             usubmin = h;
                             j2 = j;
@@ -247,6 +247,7 @@ namespace op {
                             j2 = j1;
                             j1 = j;
                         }
+                    }   // POL added }
                 }
 
                 i0 = _colsol[j1];
@@ -266,16 +267,18 @@ namespace op {
                 _rowsol[i] = j1;
                 _colsol[j1] = i;
 
-                if (i0 > -1)
+                if (i0 > -1) {
+                    // POL added {
                     // minimum column j1 assigned earlier.
-                        if (umin < usubmin)
-                            //           put in current k, and go back to that k.
-                                //           continue augmenting path i - j1 with i0.
-                                    _freeunassigned[--k] = i0;
-                        else
-                            //           no further augmenting reduction possible.
-                                //           store i0 in list of free rows for next phase.
-                                    _freeunassigned[numfree++] = i0;
+                    if (umin < usubmin)
+                        //           put in current k, and go back to that k.
+                            //           continue augmenting path i - j1 with i0.
+                                _freeunassigned[--k] = i0;
+                    else
+                        //           no further augmenting reduction possible.
+                            //           store i0 in list of free rows for next phase.
+                                _freeunassigned[numfree++] = i0;
+                }   // POL added }
             }
 
         } while (loopcnt < 2);  // repeat once.
@@ -344,18 +347,20 @@ namespace op {
                         v2 = _assigncost[i][j] - _v[j] - h;
                         if (v2 < _d[j]) {
                             _pred[j] = i;
-                            if (v2 == min)  // new column found at same minimum value
+                            if (v2 == min) {
+                                //POL added { // new column found at same minimum value
                                 if (_colsol[j] < 0) {
                                     // if unassigned, shortest augmenting path is complete.
                                     endofpath = j;
                                     unassignedfound = true;
                                     break;
                                 }
-                            // else add to list to be scanned right away.
+                                // else add to list to be scanned right away.
                                 else {
                                     _collist[k] = _collist[up];
                                     _collist[up++] = j;
                                 }
+                            }   // POL added }
                             _d[j] = v2;
                         }
                     }

@@ -1585,6 +1585,7 @@ namespace op {
         LAPJV lapjv(nAsplits);
         int i = 0;
         int j = 0;
+        unsigned maxuint = pow(2,22); //numeric_limits<unsigned>::max();
         vector<double> entropyAsplits(nAsplits);
         vector<double> entropyBsplits(nBsplits);
         for (const auto & b : Bsplits) {
@@ -1595,12 +1596,13 @@ namespace op {
             j = 0;
             for (const auto & b : Bsplits) {
                 double mci = a.mutualClusteringInfo(b);
-                lapjv.assignCost(i, j, -mci);
+                double mci_truncated = floor(mci*maxuint);
+                lapjv.assignCost(i, j, -mci_truncated);
                 ++j;
             }
             ++i;
         }
-        double total_cost = lapjv.lap();
+        double total_cost = lapjv.lap()/maxuint;
         mci_score -= total_cost;
 
         vector<unsigned> optimal_pairings;
