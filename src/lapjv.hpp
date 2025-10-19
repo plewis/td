@@ -31,15 +31,15 @@ namespace op {
 
     class LAPJV {
     public:
-        LAPJV(unsigned dim);
+        explicit LAPJV(unsigned dim);
 
         void   assignCost(unsigned i, unsigned j, double cost);
         double lap();
-        void   debugLAP(string title) const;
+        void   debugLAP(const string & title) const;
         void   getOptimalPairings(vector<unsigned> & optpairings) const;
 
         unsigned                 _dim;
-        vector<int>              _rowsol;
+        vector<unsigned>         _rowsol;
         vector<int>              _colsol;
         vector<double>           _u;
         vector<double>           _v;
@@ -76,7 +76,7 @@ namespace op {
         _assigncost[i][j] = cost;
     }
 
-    inline void LAPJV::debugLAP(string title) const {
+    inline void LAPJV::debugLAP(const string & title) const {
 #if defined(DEBUGGING_LAPJV)
         cerr << "\n############## " << title << " ##############\n" << endl;
 
@@ -146,21 +146,21 @@ namespace op {
         // u          - dual variables, row reduction numbers
         // v          - dual variables, column reduction numbers
         bool unassignedfound;
-        int i;
-        int imin;
-        int numfree = 0;
-        int prvnumfree;
-        int f;
         int i0;
-        int k;
         int freerow;
-        int j;
         int j1;
         int j2;
         int endofpath;
         int last;
-        int low;
-        int up;
+        unsigned i;
+        unsigned j;
+        unsigned imin;
+        unsigned numfree = 0;
+        unsigned prvnumfree;
+        unsigned f;
+        unsigned k;
+        unsigned low;
+        unsigned up;
         double min;
         double h;
         double umin;
@@ -187,9 +187,9 @@ namespace op {
             if (++_matches[imin] == 1) {
                 // init assignment if minimum row assigned for first time.
                 _rowsol[imin] = j;
-                _colsol[j] = imin;
+                _colsol[j] = static_cast<int>(imin);
             } else if (_v[j] < _v[_rowsol[imin]]) {
-                int j1 = _rowsol[imin];
+                j1 = static_cast<int>(_rowsol[imin]);
                 _rowsol[imin] = j;
                 _colsol[j] = imin;
                 _colsol[j1] = -1;

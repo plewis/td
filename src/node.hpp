@@ -16,16 +16,16 @@ namespace op
 
         public:
                                         Node();
-                                        ~Node();
+                                        ~Node() = default;
 
-                    Node *              getParent()     {return _parent;}
-                    Node *              getLeftChild()  {return _left_child;}
-                    Node *              getRightSib()   {return _right_sib;}
-                    int                 getNumber()     {return _number;}
-                    string              getName()       {return _name;}
-                    Split               getSplit()      {return _split;}
+                    Node *              getParent() const    {return _parent;}
+                    Node *              getLeftChild() const {return _left_child;}
+                    Node *              getRightSib() const  {return _right_sib;}
+                    int                 getNumber() const    {return _number;}
+                    string              getName()            {return _name;}
+                    Split               getSplit()           {return _split;}
 
-                    double              getEdgeLength() {return _edge_length;}
+                    double              getEdgeLength() const {return _edge_length;}
                     void                setEdgeLength(double v);
 
             static const double _smallest_edge_length;
@@ -47,12 +47,13 @@ namespace op
     };
 
     inline Node::Node() {
-        //cout << "Creating Node object" << endl;
-        clear();
-    }
-
-    inline Node::~Node() {
-        //cout << "Destroying Node object" << endl;
+        _left_child = nullptr;
+        _right_sib = nullptr;
+        _parent = nullptr;
+        _number = 0;
+        _name = "";
+        _edge_length = _smallest_edge_length;
+        _split.clear();
     }
 
     inline void Node::clear() {

@@ -1,9 +1,16 @@
 // Uncomment the line below to save incompatibility graphs as dot files for debugging purposes
 //#define OP_SAVE_DOT_FILE
 
+#include <set>
+#include <map>
+#include <vector>
+#include <fstream>
+#include <cassert>
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <iostream>
+#include <memory>
 #include <numeric>
 
 using namespace std;
@@ -20,6 +27,11 @@ using namespace std;
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/math/special_functions/gamma.hpp>
+#include <boost/range/adaptor/reversed.hpp>
+
+using namespace boost;
+
+#include "ncl/nxsmultiformat.h"
 
 #include "conditionals.hpp"
 #include "split.hpp"

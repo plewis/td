@@ -11,22 +11,22 @@ namespace op {
 
                                             Lot();
                                             ~Lot();
-            
+
             void                            setSeed(unsigned seed);
-            double                          uniform();
+            double                          uniform() const;
             int                             randint(int low, int high);
             template<typename T>
             void                            randseq(T low, T high, vector<T> & v);
             pair<unsigned, unsigned>        nchoose2(unsigned n);
-            double                          normal();
+            double                          normal() const;
             double                          gamma(double shape, double scale);
-            double                          logUniform();
-            uniform_variate_generator_t &   getUniformGenerator();
-            
+            double                          logUniform() const;
+            uniform_variate_generator_t &   getUniformGenerator() const;
+
             typedef std::shared_ptr<Lot>    SharedPtr;
 
         private:
-        
+
             unsigned                                   _seed;
             boost::mt19937                             _generator;
             std::shared_ptr<uniform_variate_generator_t>    _uniform_variate_generator;
@@ -38,44 +38,44 @@ namespace op {
             int                                             _low;
             int                                             _high;
     };
-    
+
     // member function bodies go here
-    
+
     inline Lot::Lot() : _seed(0), _gamma_shape(1.0), _low(0), _high(100) {
-        _generator.seed(static_cast<unsigned int>(time(0)));
-        _uniform_variate_generator = std::shared_ptr<uniform_variate_generator_t>(new uniform_variate_generator_t(_generator, boost::random::uniform_01<>()));
-        _normal_variate_generator = std::shared_ptr<normal_variate_generator_t>(new normal_variate_generator_t(_generator, boost::random::normal_distribution<>()));
-        _gamma_variate_generator = std::shared_ptr<gamma_variate_generator_t>(new gamma_variate_generator_t(_generator, boost::random::gamma_distribution<>(_gamma_shape)));
-        _uniform_int_generator = std::shared_ptr<uniform_int_generator_t>(new uniform_int_generator_t(_generator, boost::random::uniform_int_distribution<>(_low, _high)));
+        _generator.seed(static_cast<unsigned int>(time(nullptr)));
+        _uniform_variate_generator = std::make_shared<uniform_variate_generator_t>(_generator, boost::random::uniform_01<>());
+        _normal_variate_generator = std::make_shared<normal_variate_generator_t>(_generator, boost::random::normal_distribution<>());
+        _gamma_variate_generator = std::make_shared<gamma_variate_generator_t>(_generator, boost::random::gamma_distribution<>(_gamma_shape));
+        _uniform_int_generator = std::make_shared<uniform_int_generator_t>(_generator, boost::random::uniform_int_distribution<>(_low, _high));
     }
-        
+
     inline Lot::~Lot() {
         _uniform_variate_generator.reset();
         _normal_variate_generator.reset();
         _gamma_variate_generator.reset();
         _uniform_int_generator.reset();
     }
-        
+
     inline void Lot::setSeed(unsigned seed) {
         _seed = seed;
-        _generator.seed(_seed > 0 ? _seed : static_cast<unsigned int>(time(0)));
+        _generator.seed(_seed > 0 ? _seed : static_cast<unsigned int>(time(nullptr)));
     }
-        
-    inline double Lot::uniform() {
+
+    inline double Lot::uniform() const {
         double u = (*_uniform_variate_generator)();
         while (u <= 0.0)
             u = (*_uniform_variate_generator)();
         return u;
     }
 
-    inline double Lot::logUniform() {
+    inline double Lot::logUniform() const {
         double u = (*_uniform_variate_generator)();
         while (u <= 0.0)
             u = (*_uniform_variate_generator)();
         return log(u);
     }
-    
-    inline double Lot::normal() {
+
+    inline double Lot::normal() const {
         return (*_normal_variate_generator)();
     }
 
@@ -84,7 +84,7 @@ namespace op {
         assert(scale > 0.0);
         if (shape != _gamma_shape) {
             _gamma_shape = shape;
-            _gamma_variate_generator.reset(new gamma_variate_generator_t(_generator, boost::random::gamma_distribution<>(_gamma_shape,1)));
+            _gamma_variate_generator = std::make_shared<gamma_variate_generator_t>(_generator, boost::random::gamma_distribution<>(_gamma_shape,1));
         }
         double deviate = (*_gamma_variate_generator)();
         return scale*deviate;
@@ -94,23 +94,23 @@ namespace op {
         if (low != _low || high != _high) {
             _low  = low;
             _high = high;
-            _uniform_int_generator.reset(new uniform_int_generator_t(_generator, boost::random::uniform_int_distribution<>(_low,_high)));
+            _uniform_int_generator = std::make_shared<uniform_int_generator_t>(_generator, boost::random::uniform_int_distribution<>(_low,_high));
         }
         return (*_uniform_int_generator)();
     }
-    
+
     inline pair<unsigned, unsigned> Lot::nchoose2(unsigned n) {
         if (n < 2)
             throw Xop(format("nchoose2 called with n = %d") % n);
         int i = 0;
         int j = 1;
         if (n > 2) {
-            i = randint(1, n);
-            j = i + randint(1, n-1) - 1;
+            i = randint(1, static_cast<int>(n));
+            j = i + randint(1, static_cast<int>(n-1)) - 1;
             i = i - 1;
-            j = j % n;
+            j = j % static_cast<int>(n);
         }
-        
+
         return make_pair(i, j);
     }
 
@@ -118,7 +118,7 @@ namespace op {
     inline void Lot::randseq(T low, T high, vector<T> & vect) {
         vect.resize(high - low + 1);
         vector<pair<double, T> > v;
-        for (unsigned i = low; i <= high; i++) {
+        for (unsigned i = low; i <= high; ++i) {
             v.push_back(make_pair(uniform(), i));
         }
         sort(v.begin(), v.end());
@@ -127,9 +127,9 @@ namespace op {
         }
     }
 
-    
-    inline Lot::uniform_variate_generator_t & Lot::getUniformGenerator() {
+
+    inline Lot::uniform_variate_generator_t & Lot::getUniformGenerator() const {
         return *_uniform_variate_generator;
     }
-        
+
 }

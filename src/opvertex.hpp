@@ -9,7 +9,7 @@ using namespace std;
 using namespace boost;
 
 namespace op {
-    string memoryAddressAsString(const void * ptr) {
+    inline string memoryAddressAsString(const void * ptr) {
         if (ptr == nullptr) {
             return "nullptr";
         }
@@ -58,7 +58,7 @@ namespace op {
             //cerr << "  _flow:         " << _flow << endl;
             //cerr << "  _reverse_flow: " << _reverse_flow << endl;
         }
-        OPEdge(const OPEdge & other) : _from(nullptr), _to(nullptr), _capacity(0), _reverse_flow(0.0), _edge_is_reversed(false) {
+        OPEdge(const OPEdge & other) : _from(nullptr), _to(nullptr), _open(false), _capacity(0), _flow(0), _reverse_flow(0.0), _edge_is_reversed(false) {
             _from = other._from;
             _to = other._to;
             _capacity = other._capacity;

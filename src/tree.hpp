@@ -1,30 +1,22 @@
 #pragma once
 
-#include <memory>
-#include <iostream>
-#include "node.hpp"
-
-using namespace std;
 using namespace boost;
 
-namespace op
-    {
+namespace op {
 
     class TreeManip;
     class Likelihood;
     //class Updater;
 
-    class Tree
-        {
+    class Tree {
 
         friend class TreeManip;
         friend class Likelihood;
-        //friend class Updater;
 
         public:
 
                                         Tree();
-                                        ~Tree();
+                                        ~Tree() = default;
 
             bool                        isRooted() const;
             unsigned                    numLeaves() const;
@@ -44,41 +36,33 @@ namespace op
         public:
 
             typedef std::shared_ptr< Tree > SharedPtr;
-        };
+    };
 
-    inline Tree::Tree()
-        {
-        //cout << "Constructing a Tree" << endl;
-        clear();
-        }
-
-    inline Tree::~Tree()
-        {
-        //cout << "Destroying a Tree" << endl;
-        }
-
-    inline void Tree::clear()
-        {
+    inline Tree::Tree() {
         _is_rooted = false;
-        _root = 0;
+        _root = nullptr;
+        _nleaves = 0;
+    }
+
+    inline void Tree::clear() {
+        _is_rooted = false;
+        _root = nullptr;
+        _nleaves = 0;
         _nodes.clear();
         _preorder.clear();
         _levelorder.clear();
-        }
-
-    inline bool Tree::isRooted() const
-        {
-        return _is_rooted;
-        }
-
-    inline unsigned Tree::numLeaves() const
-        {
-        return _nleaves;
-        }
-
-    inline unsigned Tree::numNodes() const
-        {
-        return (unsigned)_nodes.size();
-        }
-
     }
+
+    inline bool Tree::isRooted() const {
+        return _is_rooted;
+    }
+
+    inline unsigned Tree::numLeaves() const {
+        return _nleaves;
+    }
+
+    inline unsigned Tree::numNodes() const {
+        return static_cast<unsigned>(_nodes.size());
+    }
+
+}

@@ -6,7 +6,6 @@
 #include <map>
 #include <climits>
 #include <cassert>
-#include <boost/container/container_fwd.hpp>
 
 using namespace std;
 using namespace boost;
@@ -18,7 +17,7 @@ namespace op
         {
         public:
                                                                 Split();
-                                                                ~Split();
+                                                                ~Split() = default;
 
             bool                                                operator==(const Split & other) const;
             bool                                                operator<(const Split & other) const;
@@ -33,7 +32,7 @@ namespace op
             typedef pair<Split, Split>                          split_pair_t;
             typedef map< treeid_t, vector<unsigned> >           treemap_t;
 
-            void                                                setEdgeLen(double v);
+            void                                                setEdgeLen(double edgelen);
             double                                              getEdgeLen() const;
 
             const split_t &                                     getBits() const;
@@ -75,10 +74,6 @@ inline Split::Split() {
     //cout << "Constructing a Split" << endl;
     }
 
-inline Split::~Split() {
-    //cout << "Destroying a Split" << endl;
-    }
-
 inline void Split::clear() {
     _edgelen = 0.0;
     for (auto & u : _bits) {
@@ -105,8 +100,8 @@ inline unsigned Split::getSize() const {
 
 inline double Split::entropy() const {
     assert(_nleaves > 0);
-    double b = static_cast<double>(getNumBitsSet());
-    double n = static_cast<double>(_nleaves);
+    auto b = static_cast<double>(getNumBitsSet());
+    auto n = static_cast<double>(_nleaves);
     double p = b/n;
     double q = 1.0 - p;
     double h = -p*log2(p) - q*log2(q);
@@ -176,7 +171,7 @@ inline double Split::mutualClusteringInfo(const Split & other) const {
     // cerr << "  B1A2: " << B1A2.createPatternRepresentation() << endl;
     // cerr << "  B1B2: " << B1B2.createPatternRepresentation() << endl;
 
-    double n = static_cast<double>(_nleaves);
+    auto n = static_cast<double>(_nleaves);
     double pA1 = static_cast<double>(A1.getNumBitsSet())/n;
     double pB1 = static_cast<double>(B1.getNumBitsSet())/n;
     double pA2 = static_cast<double>(A2.getNumBitsSet())/n;
@@ -218,12 +213,12 @@ inline void Split::setBitAt(unsigned leaf_index) {
     assert(leaf_index < _nleaves);
     unsigned unit_index = leaf_index/_bits_per_unit;
     unsigned bit_index = leaf_index - unit_index*_bits_per_unit;
-    split_unit_t bit_to_set = (split_unit_t)1 << bit_index;
+    auto bit_to_set = static_cast<split_unit_t>(1) << bit_index;
     _bits[unit_index] |= bit_to_set;
     }
 
 inline void Split::addSplit(const Split & other) {
-    unsigned nunits = (unsigned)_bits.size();
+    auto nunits = static_cast<unsigned>(_bits.size());
     assert(nunits == other._bits.size());
     for (unsigned i = 0; i < nunits; ++i)
         {
@@ -234,10 +229,10 @@ inline void Split::addSplit(const Split & other) {
 inline unsigned Split::getNumBitsSet() const {
     unsigned n = 0;
     unsigned ntax_added = 0;
-    for (unsigned i = 0; i < _bits.size(); ++i) {
+    for (unsigned long b : _bits) {
         for (unsigned j = 0; j < _bits_per_unit; ++j) {
-            split_unit_t bitmask = ((split_unit_t)1 << j);
-            bool bit_is_set = ((_bits[i] & bitmask) > (split_unit_t)0);
+            auto bitmask = (static_cast<split_unit_t>(1) << j);
+            bool bit_is_set = ((b & bitmask) > static_cast<split_unit_t>(0));
             if (bit_is_set)
                 n++;
             if (++ntax_added == _nleaves)
@@ -259,7 +254,7 @@ inline unsigned Split::findFirstSetBit() const {
     unsigned bit_index = 0;
     for (auto & u : _bits) {
         if (u > 0) {
-            while ((u & ((split_unit_t)1 << bit_index)) == 0)
+            while ((u & (static_cast<split_unit_t>(1) << bit_index)) == 0)
                 bit_index++;
             break;
         }
@@ -324,10 +319,10 @@ inline string Split::createPatternRepresentation(bool show_edge_length) const {
     if (show_edge_length)
         s += str(format("%.3f: ") % _edgelen);
     unsigned ntax_added = 0;
-    for (unsigned i = 0; i < _bits.size(); ++i) {
+    for (unsigned long b : _bits) {
         for (unsigned j = 0; j < _bits_per_unit; ++j) {
-            split_unit_t bitmask = ((split_unit_t)1 << j);
-            bool bit_is_set = ((_bits[i] & bitmask) > (split_unit_t)0);
+            split_unit_t bitmask = (static_cast<split_unit_t>(1) << j);
+            bool bit_is_set = ((b & bitmask) > static_cast<split_unit_t>(0));
             if (bit_is_set)
                 s += '*';
             else

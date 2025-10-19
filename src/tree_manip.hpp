@@ -8,6 +8,7 @@
 #include <set>
 #include <regex>
 #include <boost/range/adaptor/reversed.hpp>
+#include <utility>
 #include "tree.hpp"
 #include "xop.hpp"
 
@@ -18,44 +19,46 @@ namespace op {
     class TreeManip {
     public:
         TreeManip();
-        TreeManip(Tree::SharedPtr t);
-        ~TreeManip();
+        explicit TreeManip(const Tree::SharedPtr& t);
+        ~TreeManip() = default;
 
-        void                        createLeafNodeMap(map<string, Node *> & leafmap);
-        Node *                      getNodeWithSplit(Split & s);
+        void                        createLeafNodeMap(map<string, Node *> & leafmap) const;
+        Node *                      getNodeWithSplit(const Split & s) const;
 
-        void                        setTree(Tree::SharedPtr t);
+        void                        setTree(const Tree::SharedPtr & t);
         Tree::SharedPtr             getTree();
         double                      calcTreeLength() const;
-        void                        scaleAllEdgeLengths(double scaler);
+        void                        scaleAllEdgeLengths(double scaler) const;
         void                        createTestTree();
 
         string                      makeNewick(unsigned precision, bool use_names) const;
-        void                        buildFromNewick(const string newick, bool rooted, bool allow_polytomies);
-        void                        setLeafNames(const vector<string> & leafnames);
-        void                        storeSplits(set<Split> & internal_splits, set<Split> & leaf_splits);
-        void                        setEdgeLength(const Split & s, double edge_length);
-        void                        rerootAt(int node_index);
+        void                        buildFromNewick(const string &newick, bool rooted, bool allow_polytomies);
+        void                        setLeafNames(const vector<string> & leafnames) const;
+        void                        storeSplits(set<Split> & internal_splits, set<Split> & leaf_splits) const;
+        void                        setEdgeLength(const Split & s, double edge_length) const;
+        void                        rerootAt(int node_number) const;
 
-        void                        dropSplit(const Split & s);
-        void                        addSplit(const Split & s);
+        void                        dropSplit(const Split & s) const;
+        void                        addSplit(const Split & s) const;
         void                        debugCheckSplits() const;
 
         static vector<string>           _taxon_names; // all trees stored by any TreeManip use this taxon ordering
-        static map<string, unsigned>    _taxon_map;   // maps taxon name found in treefile to index into _taxon_names
+        static map<string, unsigned>    _taxon_map;   // maps taxon name found in the treefile to the index into _taxon_names
 
     private:
 
-        void                        refreshPreorder();
-        void                        refreshLevelorder();
-        void                        rerootHelper(Node * m, Node * t);
-        void                        extractNodeNumberFromName(Node * nd, set<unsigned> & used);
-        void                        extractEdgeLen(Node * nd, string edge_length_string);
-        unsigned                    countNewickLeaves(const string newick);
-        void                        stripOutNexusComments(string & newick);
-        bool                        canHaveSibling(Node * nd, bool rooted, bool allow_polytomies);
+        void                        refreshPreorder() const;
+        void                        refreshLevelorder() const;
 
-        Tree::SharedPtr                 _tree;
+        static void                 rerootHelper(Node * m, Node * t);
+
+        static void                 extractNodeNumberFromName(Node * nd, set<unsigned> & used, unsigned nlvs);
+        static void                 extractEdgeLen(Node * nd, string edge_length_string);
+        static unsigned             countNewickLeaves(const string &newick);
+        static void                 stripOutNexusComments(string & newick);
+        static bool                 canHaveSibling(const Node * nd, bool rooted, bool allow_polytomies);
+
+        Tree::SharedPtr             _tree;
 
     public:
 
@@ -68,19 +71,14 @@ namespace op {
         _tree.reset();
     }
 
-    inline TreeManip::TreeManip(Tree::SharedPtr t)
+    inline TreeManip::TreeManip(const Tree::SharedPtr & t)
     {
         //cerr << "Constructing a TreeManip with a supplied tree" << endl;
         _tree.reset();
         setTree(t);
     }
 
-    inline TreeManip::~TreeManip()
-    {
-        //cerr << "Destroying a TreeManip" << endl;
-    }
-
-    inline Node * TreeManip::getNodeWithSplit(Split & s) {
+    inline Node * TreeManip::getNodeWithSplit(const Split & s) const {
         Node * thend = nullptr;
         for (auto nd : _tree->_preorder) {
             if (nd->getSplit() == s) {
@@ -91,7 +89,7 @@ namespace op {
         return thend;
     }
 
-    inline void TreeManip::createLeafNodeMap(map<string, Node *> & leafmap) {
+    inline void TreeManip::createLeafNodeMap(map<string, Node *> & leafmap) const {
         leafmap.clear();
         for (auto nd : _tree->_preorder) {
             if (!nd->getLeftChild()) {
@@ -101,7 +99,7 @@ namespace op {
         }
     }
 
-    inline void TreeManip::setTree(Tree::SharedPtr t)
+    inline void TreeManip::setTree(const Tree::SharedPtr & t)
     {
         assert(t);
         _tree = t;
@@ -122,8 +120,7 @@ namespace op {
         return TL;
     }
 
-    inline void TreeManip::scaleAllEdgeLengths(double scaler)
-    {
+    inline void TreeManip::scaleAllEdgeLengths(double scaler) const {
         for (auto nd : _tree->_preorder)
         {
             nd->_edge_length *= scaler;
@@ -133,7 +130,7 @@ namespace op {
     inline void TreeManip::createTestTree()
     {
         _tree.reset();
-        _tree = Tree::SharedPtr(new Tree());
+        _tree = std::make_shared<Tree>();
         _tree->_nodes.resize(6);
 
         Node * root_node       = &_tree->_nodes[0];
@@ -161,16 +158,16 @@ namespace op {
         //                        |
         //                    root_node (5)
         //
-        root_node->_parent = 0;
+        root_node->_parent = nullptr;
         root_node->_left_child = first_internal;
-        root_node->_right_sib = 0;
+        root_node->_right_sib = nullptr;
         root_node->_number = 5;
         root_node->_name = "root node";
         root_node->_edge_length = 0.0;
 
         first_internal->_parent = root_node;
         first_internal->_left_child = second_internal;
-        first_internal->_right_sib = 0;
+        first_internal->_right_sib = nullptr;
         first_internal->_number = 4;
         first_internal->_name = "first internal node";
         first_internal->_edge_length = 0.1;
@@ -183,22 +180,22 @@ namespace op {
         second_internal->_edge_length = 0.1;
 
         first_leaf->_parent = second_internal;
-        first_leaf->_left_child = 0;
+        first_leaf->_left_child = nullptr;
         first_leaf->_right_sib = second_leaf;
         first_leaf->_number = 0;
         first_leaf->_name = "first leaf";
         first_leaf->_edge_length = 0.1;
 
         second_leaf->_parent = second_internal;
-        second_leaf->_left_child = 0;
-        second_leaf->_right_sib = 0;
+        second_leaf->_left_child = nullptr;
+        second_leaf->_right_sib = nullptr;
         second_leaf->_number = 1;
         second_leaf->_name = "second leaf";
         second_leaf->_edge_length = 0.1;
 
         third_leaf->_parent = first_internal;
-        third_leaf->_left_child = 0;
-        third_leaf->_right_sib = 0;
+        third_leaf->_left_child = nullptr;
+        third_leaf->_right_sib = nullptr;
         third_leaf->_number = 2;
         third_leaf->_name = "third leaf";
         third_leaf->_edge_length = 0.1;
@@ -223,7 +220,7 @@ namespace op {
 
     inline string TreeManip::makeNewick(unsigned precision, bool use_names) const
     {
-        if (use_names && _taxon_names.size() == 0) {
+        if (use_names && _taxon_names.empty()) {
             throw Xop("Cannot use taxon names in makeNewick when no taxon names have been saved");
         }
         string newick;
@@ -232,7 +229,7 @@ namespace op {
         const format internal_node_format( str(format("):%%.%df") % precision) );
         stack<Node *> node_stack;
 
-        Node * root_tip = (_tree->_is_rooted ? 0 : _tree->_root);
+        Node * root_tip = (_tree->_is_rooted ? nullptr : _tree->_root);
         for (auto nd : _tree->_preorder)
         {
             if (nd->_left_child)
@@ -245,7 +242,7 @@ namespace op {
                     else
                         newick += str(format(tip_node_format) % (root_tip->_number + 1) % nd->_edge_length);
                     newick += ",";
-                    root_tip = 0;
+                    root_tip = nullptr;
                 }
             }
             else
@@ -258,14 +255,14 @@ namespace op {
                     newick += ",";
                 else
                 {
-                    Node * popped = (node_stack.empty() ? 0 : node_stack.top());
+                    Node * popped = (node_stack.empty() ? nullptr : node_stack.top());
                     while (popped && !popped->_right_sib)
                     {
                         node_stack.pop();
                         if (node_stack.empty())
                         {
                             newick += ")";
-                            popped = 0;
+                            popped = nullptr;
                         }
                         else
                         {
@@ -286,7 +283,7 @@ namespace op {
         return newick;
     }
 
-    inline void TreeManip::extractNodeNumberFromName(Node * nd, set<unsigned> & used)
+    inline void TreeManip::extractNodeNumberFromName(Node * nd, set<unsigned> & used, unsigned nlvs)
     {
         assert(nd);
         bool success = true;
@@ -302,15 +299,17 @@ namespace op {
         if (!success) {
             // Node name could not be converted to an integer value
             // Assume node name is an actual taxon name
+            string no_underscores = std::regex_replace(nd->_name, std::regex("_"), " ");
             try {
-                string taxon_name = nd->_name;
-                string no_underscores = std::regex_replace(taxon_name, std::regex("_"), " ");
                 x = _taxon_map.at(no_underscores);
             } catch(out_of_range &) {
+                if (_taxon_map.size() == nlvs) {
+                    throw Xop(str(format("taxon name \"%s\" is not a valid taxon name") % nd->_name));
+                }
                 // Add this taxon name to _taxon_names and _taxon_map
-                x = (unsigned)_taxon_names.size();
-                _taxon_names.emplace_back(nd->_name);
-                _taxon_map[nd->_name] = x;
+                x = static_cast<unsigned>(_taxon_names.size());
+                _taxon_names.emplace_back(no_underscores);
+                _taxon_map[no_underscores] = x;
             }
         }
 
@@ -318,9 +317,9 @@ namespace op {
         pair<set<unsigned>::iterator, bool> insert_result = used.insert(x);
         if (insert_result.second) {
             // insertion was made, so x has NOT already been used
-            nd->_number = x;
+            nd->_number = static_cast<int>(x);
         } else {
-            // insertion was not made, so set already contained x
+            // insertion was not made, so the set already contained x
             throw Xop(str(format("leaf number %d used more than once") % x));
         }
     }
@@ -350,12 +349,12 @@ namespace op {
 
     }
 
-    inline unsigned TreeManip::countNewickLeaves(const string newick)
+    inline unsigned TreeManip::countNewickLeaves(const string & newick)
     {
-        regex taxonexpr("[(,]\\s*(\\d+|\\S+?|['].+?['])\\s*(?=[,):])");
+        regex taxonexpr(R"([(,]\s*(\d+|\S+?|['].+?['])\s*(?=[,):]))");
         sregex_iterator m1(newick.begin(), newick.end(), taxonexpr);
         sregex_iterator m2;
-        return (unsigned)std::distance(m1, m2);
+        return static_cast<unsigned>(std::distance(m1, m2));
     }
 
     inline void TreeManip::stripOutNexusComments(string & newick)
@@ -372,9 +371,8 @@ namespace op {
         cerr << endl;
     }
 
-    inline void TreeManip::refreshPreorder()
-    {
-        // Create vector of node pointers in preorder sequence
+    inline void TreeManip::refreshPreorder() const {
+        // Create the vector of node pointers in the preorder sequence
         _tree->_preorder.clear();
         _tree->_preorder.reserve(_tree->_nodes.size() - 1); // _preorder does not include root node
 
@@ -384,7 +382,7 @@ namespace op {
         Node * first_preorder = _tree->_root->_left_child;
 
         // sanity check: first preorder node should be the only child of the root node
-        assert(first_preorder->_right_sib == 0);
+        assert(first_preorder->_right_sib == nullptr);
 
         Node * nd = first_preorder;
         _tree->_preorder.push_back(nd);
@@ -393,7 +391,7 @@ namespace op {
         {
             if (!nd->_left_child && !nd->_right_sib)
             {
-                // nd has no children and no siblings, so next preorder is the right sibling of
+                // nd has no children and no siblings, so the next preorder is the right sibling of
                 // the first ancestral node that has a right sibling.
                 Node * anc = nd->_parent;
                 while (anc && !anc->_right_sib)
@@ -406,7 +404,7 @@ namespace op {
                 }
                 else
                 {
-                    // nd is last preorder node in the tree
+                    // nd is the last preorder node in the tree
                     break;
                 }
             }
@@ -432,7 +430,7 @@ namespace op {
         }   // end while loop
 
         // renumber internal nodes in postorder sequence
-        int curr_internal = _tree->_nleaves;
+        int curr_internal = static_cast<int>(_tree->_nleaves);
         for (auto nd : adaptors::reverse(_tree->_preorder))
         {
             if (nd->_left_child)
@@ -473,8 +471,7 @@ namespace op {
     //                               (2) queue = [], stack = [1,2,3,4,5,6,7,8,9]
     //                               (3) no-op: 9 has no children
     //                            5. stack vector is now in level order
-    inline void TreeManip::refreshLevelorder()
-    {
+    inline void TreeManip::refreshLevelorder() const {
         if (!_tree->_root)
             return;
 
@@ -488,9 +485,9 @@ namespace op {
         Node * nd = _tree->_root->_left_child;
 
         // sanity check: first node should be the only child of the root node
-        assert(nd->_right_sib == 0);
+        assert(nd->_right_sib == nullptr);
 
-        // Push nd onto back of queue
+        // Push nd onto the back of the queue
         q.push(nd);
 
         while (!q.empty())
@@ -501,7 +498,7 @@ namespace op {
             // and push it onto the stack
             _tree->_levelorder.push_back(nd);
 
-            // add all children of nd to back of queue
+            // add all children of nd to the back of the queue
             Node * child = nd->_left_child;
             if (child)
             {
@@ -516,12 +513,12 @@ namespace op {
         }   // end while loop
     }
 
-    inline bool TreeManip::canHaveSibling(Node * nd, bool rooted, bool allow_polytomies)
+    inline bool TreeManip::canHaveSibling(const Node * nd, bool rooted, bool allow_polytomies)
     {
         assert(nd);
         if (!nd->_parent)
         {
-            // trying to give root node a sibling
+            // trying to give the root node a sibling
             return false;
         }
 
@@ -540,12 +537,12 @@ namespace op {
             {
                 if (rooted)
                 {
-                    // root node has exactly 2 children in rooted trees
+                    // the root node has exactly 2 children in rooted trees
                     nd_can_have_sibling = false;
                 }
                 else if (nd != nd->_parent->_left_child->_right_sib)
                 {
-                    // trying to give root node more than 3 children
+                    // trying to give the root node more than 3 children
                     nd_can_have_sibling = false;
                 }
             }
@@ -554,10 +551,9 @@ namespace op {
         return nd_can_have_sibling;
     }
 
-    inline void TreeManip::rerootAt(int node_number)
-    {
-        // Locate node having _number equal to node_number
-        Node * nd = 0;
+    inline void TreeManip::rerootAt(int node_number) const {
+        // Locate the node having a _number equal to node_number
+        Node * nd = nullptr;
         for (auto & curr : _tree->_nodes)
         {
             if (curr._number == node_number)
@@ -601,7 +597,7 @@ namespace op {
         Node * m_right_sib     = m->_right_sib;
         Node * m_parent        = m->_parent;
 
-        // Starting with t, walk down tree to identify x, the child of m that is on the path from m to t
+        // Starting with t, walk down the tree to identify x, the child of m that is on the path from m to t
         Node * x = t;
         while (x->_parent != m)
         {
@@ -611,7 +607,7 @@ namespace op {
         Node * x_right_sib = x->_right_sib;
 
         // Identify x_left_sib, the immediate left sibling of x (will be NULL if x is _left_child of m)
-        Node * x_left_sib = 0;
+        Node * x_left_sib = nullptr;
         if (x != m_left_child)
         {
             x_left_sib = m_left_child;
@@ -622,8 +618,8 @@ namespace op {
             }
         }
 
-        // identify m_left_sib, the immediate left sibling of m (will be NULL if m is root node or is _left_child of its parent)
-        Node * m_left_sib = 0;
+        // identify m_left_sib, the immediate left sibling of m (will be NULL if m is the root node or is _left_child of its parent)
+        Node * m_left_sib = nullptr;
         if (m_parent && m != m_parent->_left_child)
         {
             m_left_sib = m_parent->_left_child;
@@ -640,8 +636,8 @@ namespace op {
             // m is the root node
             assert(!m_right_sib);
             assert(!m_left_sib);
-            x->_right_sib = 0;
-            x->_parent = 0;
+            x->_right_sib = nullptr;
+            x->_parent = nullptr;
             if (x == m_left_child)
                 m->_left_child = x_right_sib;
             else
@@ -649,11 +645,11 @@ namespace op {
         }
         else if (m == m_parent->_left_child)
         {
-            // m is leftmost child of its parent
+            // m is the leftmost child of its parent
             x->_right_sib = m_right_sib;
             x->_parent = m_parent;
-            m->_right_sib = 0;
-            m->_parent = 0;
+            m->_right_sib = nullptr;
+            m->_parent = nullptr;
             m_parent->_left_child = x;
             if (x == m_left_child)
                 m->_left_child = x_right_sib;
@@ -666,8 +662,8 @@ namespace op {
             m_left_sib->_right_sib = x;
             x->_right_sib = m_right_sib;
             x->_parent = m_parent;
-            m->_right_sib = 0;
-            m->_parent = 0;
+            m->_right_sib = nullptr;
+            m->_parent = nullptr;
             if (x == m_left_child)
                 m->_left_child = x_right_sib;
             else
@@ -690,7 +686,7 @@ namespace op {
         }
     }
 
-    inline void TreeManip::setLeafNames(const vector<string> & leafnames) {
+    inline void TreeManip::setLeafNames(const vector<string> & leafnames) const {
         for (auto nd : _tree->_preorder) {
             if (nd->_number < static_cast<int>(leafnames.size())) {
                 nd->_name = leafnames[nd->_number];
@@ -698,14 +694,11 @@ namespace op {
         }
     }
 
-    inline void TreeManip::buildFromNewick(const string newick, bool rooted, bool allow_polytomies)
+    inline void TreeManip::buildFromNewick(const string & newick, bool rooted, bool allow_polytomies)
     {
         _tree.reset();
-        _tree.reset(new Tree());
+        _tree = std::make_shared<Tree>();
         _tree->_is_rooted = rooted;
-
-        set<unsigned> used; // used to ensure that two tips do not have the same number
-        unsigned curr_leaf = 0;
 
         string commentless_newick = newick;
         stripOutNexusComments(commentless_newick);
@@ -716,20 +709,21 @@ namespace op {
         unsigned max_nodes = 2*_tree->_nleaves - (_tree->_is_rooted ? 0 : 2);
         _tree->_nodes.resize(max_nodes);
 
-        // Assign all nodes a default node number that is negative to make it easy to tell if we've not set it
-        // (leaves will replace this number with the number equivalent of their name, internal nodes will replace
-        // this number with a number higher than any leaf)
+        // Assign all nodes a default node number that is negative to make it easy to tell if we've failed to set it.
+        // Leaves will replace this number with the number equivalent of their name. Internal nodes will replace
+        // this number with a number higher than any leaf.
         for (unsigned i = 0; i < max_nodes; ++i)
             _tree->_nodes[i]._number = -1;
 
         // This will point to the first tip node encountered so that we can reroot at this node before returning
-        Node * first_tip = 0;
-
-        unsigned num_edge_lengths = 0;
-        unsigned curr_node_index = 0;
 
         try
         {
+            unsigned curr_node_index = 0;
+            unsigned num_edge_lengths = 0;
+            Node * first_tip = nullptr;
+            unsigned curr_leaf = 0;
+            set<unsigned> used;
             // Root node
             Node * nd = &_tree->_nodes[curr_node_index];
             _tree->_root = nd;
@@ -743,12 +737,12 @@ namespace op {
 
             // Some flags to keep track of what we did last
             enum {
-                Prev_Tok_LParen		= 0x01,	// previous token was a left parenthesis ('(')
-                Prev_Tok_RParen		= 0x02,	// previous token was a right parenthesis (')')
-                Prev_Tok_Colon		= 0x04,	// previous token was a colon (':')
-                Prev_Tok_Comma		= 0x08,	// previous token was a comma (',')
-                Prev_Tok_Name		= 0x10,	// previous token was a node name (e.g. '2', 'P._articulata')
-                Prev_Tok_EdgeLen	= 0x20	// previous token was an edge length (e.g. '0.1', '1.7e-3')
+                Prev_Tok_LParen     = 0x01, // the previous token was a left parenthesis ('(')
+                Prev_Tok_RParen     = 0x02, // the previous token was a right parenthesis (')')
+                Prev_Tok_Colon      = 0x04, // the previous token was a colon (':')
+                Prev_Tok_Comma      = 0x08, // the previous token was a comma (',')
+                Prev_Tok_Name       = 0x10, // the previous token was a node name (e.g. '2', 'P._articulata')
+                Prev_Tok_EdgeLen    = 0x20  // the previous token was an edge length (e.g. '0.1', '1.7e-3')
                 };
             unsigned previous = Prev_Tok_LParen;
 
@@ -773,7 +767,7 @@ namespace op {
             // Set to start of each node name and used in case of error
             unsigned node_name_position = 0;
 
-            // loop through the characters in newick, building up tree as we go
+            // loop through the characters in newick, building up the tree as we go
             unsigned position_in_string = 0;
             for (auto ch : commentless_newick)
             {
@@ -787,7 +781,7 @@ namespace op {
                         node_name_position = 0;
                         if (!nd->_left_child)
                         {
-                            extractNodeNumberFromName(nd, used);
+                            extractNodeNumberFromName(nd, used, _tree->_nleaves);
                             curr_leaf++;
                             if (!first_tip)
                                 first_tip = nd;
@@ -816,7 +810,7 @@ namespace op {
 
                         if (!nd->_left_child)
                         {
-                            extractNodeNumberFromName(nd, used);
+                            extractNodeNumberFromName(nd, used, _tree->_nleaves);
                             curr_leaf++;
                             if (!first_tip)
                                 first_tip = nd;
@@ -859,7 +853,7 @@ namespace op {
                         break;
 
                     case ')':
-                        // If nd is bottommost node, expecting left paren or semicolon, but not right paren
+                        // If nd is the bottommost node, expecting left paren or semicolon, but not right paren
                         if (!nd->_parent)
                             throw Xop(str(format("Too many right parentheses at position %d in tree description") % position_in_string));
 
@@ -905,7 +899,7 @@ namespace op {
                         if (!(previous & LParen_Valid))
                             throw Xop(str(format("Not expecting left parenthesis at position %d in tree description") % position_in_string));
 
-                        // Create new node above and to the left of the current node
+                        // Create a new node above and to the left of the current node
                         assert(!nd->_left_child);
                         curr_node_index++;
                         if (curr_node_index == _tree->_nodes.size())
@@ -934,7 +928,7 @@ namespace op {
                         break;
 
                     default:
-                        // Get here if ch is not one of ();:,'
+                        // Get here if ch is not "(", ")", ";", ":", ",", or "'"
 
                         // Expecting either an edge length or an unquoted node name
                         if (previous == Prev_Tok_Colon)
@@ -953,7 +947,7 @@ namespace op {
                             node_name_position = position_in_string;
                         }
 
-                }   // end of switch statement
+                }   // end of the switch statement
             }   // loop over characters in newick string
 
             if (inside_unquoted_name)
@@ -972,14 +966,14 @@ namespace op {
             refreshPreorder();
             refreshLevelorder();
         }
-        catch(Xop & x)
+        catch(Xop &)
         {
             _tree.reset();
-            throw x;
+            throw;
         }
     }
 
-    inline void TreeManip::setEdgeLength(const Split & s, double edge_length) {
+    inline void TreeManip::setEdgeLength(const Split & s, double edge_length) const {
         // Assumes nodes in the tree have splits set correctly
         // Find split s in the tree and change that edge length
         for (auto nd : _tree->_preorder) {
@@ -987,17 +981,12 @@ namespace op {
                 nd->_split.setEdgeLen(edge_length);
                 nd->setEdgeLength(edge_length);
 
-                // //temporary!
-                // cerr << "  setting length of " << s.createPatternRepresentation() << " to " << setprecision(5) << edge_length << endl;
-
                 return;
             }
         }
-        // //temporary!
-        // cerr << "  !! Could not find split " << s.createPatternRepresentation() << " in tree" << endl;
     }
 
-    inline void TreeManip::storeSplits(set<Split> & internal_splits, set<Split> & leaf_splits) {
+    inline void TreeManip::storeSplits(set<Split> & internal_splits, set<Split> & leaf_splits) const {
         // Start by clearing and resizing all splits
         for (auto & nd : _tree->_nodes) {
             nd._split.resize(_tree->_nleaves);
@@ -1016,7 +1005,7 @@ namespace op {
                 // add this internal node's split to splitset
             }
             else {
-                // set bit corresponding to this leaf node's number
+                // set the bit corresponding to this leaf node's number
                 nd->_split.setBitAt(nd->_number);
                 leaf_splits.insert(nd->_split);
             }
@@ -1028,9 +1017,9 @@ namespace op {
         }
     }
 
-    inline void TreeManip::dropSplit(const Split & s) {
+    inline void TreeManip::dropSplit(const Split & s) const {
         // Locate node having split s
-        auto it = find_if(_tree->_preorder.begin(), _tree->_preorder.end(),[s](Node * nd){return nd->_split == s;});
+        auto it = find_if(_tree->_preorder.begin(), _tree->_preorder.end(),[s](const Node * nd){return nd->_split == s;});
         assert(it != _tree->_preorder.end());
         Node * nd = *it;
 
@@ -1043,7 +1032,7 @@ namespace op {
         }
         nd->_left_child = nullptr;
         while (!child_pile.empty()) {
-            // Remove child from stack
+            // Remove child from the stack
             Node * child = child_pile.top();
             child_pile.pop();
 
@@ -1081,11 +1070,11 @@ namespace op {
         //debugCheckSplits();
     }
 
-    inline void TreeManip::addSplit(const Split & s) {
-        // Find first node not currently in use
+    inline void TreeManip::addSplit(const Split & s) const {
+        // Find the first node not currently in use
         Node * newnd = nullptr;
-        for (unsigned i = 0; i < _tree->_nodes.size(); i++) {
-            Node * nd = &_tree->_nodes[i];
+        for (auto & node : _tree->_nodes) {
+            Node * nd = &node;
             if (nd->_left_child == nullptr && nd->_right_sib == nullptr && nd->_parent == nullptr) {
                 newnd = nd;
                 break;
@@ -1095,7 +1084,7 @@ namespace op {
         // If unused is empty, we will not be able to add any splits
         assert (newnd != nullptr);
 
-        // Find first node in postorder sequence that contains s
+        // Find the first node in the postorder sequence that contains s
         for (auto nd : adaptors::reverse(_tree->_preorder)) {
             Split & ndsplit = nd->_split;
             if (s.subsumedIn(ndsplit)) {
@@ -1105,7 +1094,7 @@ namespace op {
                     child_pile.push(child);
                 }
                 while (!child_pile.empty()) {
-                    // Remove child from stack
+                    // Remove child from the stack
                     Node * child = child_pile.top();
                     child_pile.pop();
                     Split & childsplit = child->_split;
