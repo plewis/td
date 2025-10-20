@@ -1,4 +1,4 @@
-#pragma once
+    #pragma once
 
 using namespace std;
 using namespace boost;
@@ -20,6 +20,7 @@ namespace op {
         void calcDistanceToReference() const;
         void calcFrechetMean();
         void calcPairwise() const;
+        unsigned buildThreadSchedule();
 
 #if defined(TESTKDE)
         void testKDE();
@@ -29,6 +30,14 @@ namespace op {
         void rPlotDists(vector<double> & dists, string & rscript, double & radius, double & hpd_lower, double & hpd_upper, double hpd_level);
         bool findEmpiricalHPDwaterline(double & hpd_cutoff, double & min_log_posterior, double & max_log_posterior) const;
         void buildTree(unsigned tree_index, TreeManip & tm) const;
+        void calcBHVDistanceForPairs(
+            unsigned start_pair,
+            unsigned end_pair,
+            vector<TreeManip> & mu,
+            vector<double> & bhv_distances,
+            vector<pair<Split::treeid_t, Split::treeid_t> > & in_pairs,
+            vector<Split::treeid_pair_t> & ABpairs,
+            vector<Split::split_pair_t> & commonPairs) const;
         double calcBHVDistance(
             TreeManip & starttm,
             TreeManip & endtm,
@@ -44,7 +53,7 @@ namespace op {
         void chooseRandomTree(TreeManip & tm, Lot & lot) const;
         void displaceTreeAlongGeodesic(TreeManip & start_tree, TreeManip & end_tree, double displacement) const;
         bool frechetCloseEnough(vector<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const;
-        unsigned computeFrechetMean(TreeManip & mean_tree) const;
+        unsigned computeFrechetMean(TreeManip & mean_tree) const ;
         static double opCalcTreeIDLength(
             const Split::treeid_t & splits);
         double opCalcLeafContribution(
@@ -103,6 +112,7 @@ namespace op {
         bool                    _refdist;
         bool                    _frechet_mean;
         bool                    _save_credible_set;
+        unsigned                _nthreads;
         unsigned                _precision;
         unsigned                _random_number_seed;
         vector<unsigned>        _skip;
@@ -119,6 +129,9 @@ namespace op {
         double                  _kde_sigma;
         double                  _kde_q25;
         double                  _kde_q75;
+
+        vector<pair<unsigned,unsigned> > _thread_sched;
+        static mutex            _mutex;
 
         static string           _program_name;
         static unsigned         _major_version;
@@ -138,9 +151,13 @@ namespace op {
         _refdist(false),
         _frechet_mean(false),
         _save_credible_set(false),
+        _nthreads(1),
         _precision(9),
         _random_number_seed(1),
+        _skip(0),
+        _tree_file_names(),
         _lambda(-1.0),
+        _scale_by(1.0),
         _tree_summary(nullptr),
         _frechet_epsilon(0.00001),
         _frechet_n(10),
@@ -149,28 +166,9 @@ namespace op {
         _kde_sigma(0.0),
         _kde_q25(0.0),
         _kde_q75(0.0) {
-        //cout << "Constructing a SStrom" << endl;
     }
 
     inline OP::~OP() = default;
-
-    inline void OP::clear() {
-        _noisy = false;
-        _output_for_gtp = false;
-        _prefix = "outfile";
-        _pairwise = false;
-        _refdist = false;
-        _frechet_mean = false;
-        _save_credible_set = false;
-        _lambda = -1.0;
-        _tree_summary   = nullptr;
-        _precision = 9;
-        _random_number_seed = 1;
-        //_taxon_labels.clear();
-        _frechet_epsilon = 0.00001;
-        _frechet_n = 10;
-        _frechet_k = 1000000;
-    }
 
     inline void OP::processCommandLineOptions(int argc, const char * argv[]) {
         program_options::variables_map       vm;
@@ -192,6 +190,7 @@ namespace op {
             ("frechet-k,k", program_options::value(&_frechet_k), "maximum number of Frechet mean iterations (default:1000000)")
             ("seed", program_options::value(&_random_number_seed), "pseudorandom number generator seed (used only when estimating mean tree)")
             ("scale", program_options::value(&_scale_by), "rescale all input trees by this multiplicative factor (default: 1.0)")
+            ("nthreads", program_options::value(&_nthreads), "number of threads to use in determining Frechet mean (default: 1)")
             ("credset","if posterior available (i.e. treefile from RevBayes), output 95% credible set of trees and extreme trees (default: no)")
 #if defined(TESTKDE)
             ("testkde", "test kernel density estimation")
@@ -269,6 +268,8 @@ namespace op {
             _save_credible_set = true;
         }
 
+        if (_nthreads > 1)
+            buildThreadSchedule();
 
         // Sanity check
         bool ok = ( _pairwise && !_frechet_mean && !_refdist && _lambda < 0.0);                     // only pairwise chosen
@@ -1830,6 +1831,62 @@ namespace op {
         }
     }
 
+    inline unsigned OP::buildThreadSchedule() {
+        unsigned int num_threads = std::thread::hardware_concurrency();
+        if (num_threads > 0) {
+            std::cout << "Number of hardware threads available: " << num_threads << std::endl;
+        }
+
+        // Let n be the number of pairwise comparisons
+        unsigned n = _frechet_n*(_frechet_n - 1)/2;
+        assert(n > 0);
+        _thread_sched.clear();
+        // Example: frechet-n = 10 -> n = 10*9/2=45 pairwise comparisons, _nthreads = 4
+        // entities_per_thread = 45/4=11, remainder = 45-4*11=1
+        // thread 0: begin = 0, end = 0+11+1=12, remainder = 1-1=0
+        // thread 1: begin = 12, end = 12+11+0=23, remainder = 0
+        // thread 2: begin = 23, end = 23+11+0=34, remainder = 0
+        // thread 3: begin = 34, end = 34+11+0=45, remainder = 0
+        unsigned entities_per_thread = (unsigned)floor(1.0*n/_nthreads);
+        unsigned remainder = n - _nthreads*entities_per_thread;
+        unsigned begin = 0;
+        for (unsigned i = 0; i < _nthreads; i++) {
+            unsigned end = begin + entities_per_thread;
+            if (remainder > 0) {
+                // Add another job to early threads to use up remainder
+                end++;
+                remainder--;
+            }
+            _thread_sched.push_back(make_pair(begin,end));
+            begin = end;
+        }
+        return n;
+    }
+
+    inline void OP::calcBHVDistanceForPairs(
+            unsigned start_pair,
+            unsigned end_pair,
+            vector<TreeManip> & mu,
+            vector<double> & bhv_distances,
+            vector<pair<Split::treeid_t, Split::treeid_t> > & in_pairs,
+            vector<Split::treeid_pair_t> & ABpairs,
+            vector<Split::split_pair_t> & commonPairs) const {
+        // Find the mean trees in the range of pairs starting at start_pair and ending at end_pair
+        for (unsigned k = start_pair; k < end_pair; ++k) {
+            // Find indices that go with pair k
+            unsigned i = static_cast<unsigned>(floor(0.5*(1.0 + sqrt(1.0 + 8.0*k))));
+            unsigned j = k - i*(i - 1.0)/2.0;
+            TreeManip tm0(mu[i].getTree());
+            TreeManip tm1(mu[j].getTree());
+            double bhvdist = calcBHVDistance(tm0, tm1, in_pairs, ABpairs, commonPairs);
+            {
+                lock_guard<mutex> guard(_mutex);
+                assert(k < bhv_distances.size());
+                bhv_distances[k] = bhvdist;
+            }
+        }
+    }
+
     inline bool OP::frechetCloseEnough(vector<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const {
         // Compute pairwise distances between trees in mu with index >= lower and index < upper and return
         // true iff all pairwise distances are less than epsilon
@@ -1839,13 +1896,50 @@ namespace op {
         vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
         assert(lower < upper);
         assert (upper <= mu.size());
-        for (unsigned i = lower; i < upper - 1; ++i) {
-            for (unsigned j = i+1; j < upper; ++j) {
-                double bhvdist = calcBHVDistance(mu[i-1], mu[j-1], in_pairs, ABpairs, commonPairs);
-                if (bhvdist > epsilon) {
-                    is_close_enough = false;
-                    break;
+        if (_nthreads > 1) {
+            // Assign each pair to a different thread until all are done
+            unsigned npairs = _frechet_n*(_frechet_n - 1)/2;
+            vector<thread> threads;
+            vector<double> bhv_distances(npairs, 0.0);
+            for (unsigned i = 0; i < _nthreads; i++) {
+                unsigned start_pair = _thread_sched[i].first;
+                unsigned end_pair = _thread_sched[i].second;
+                threads.emplace_back(thread(&OP::calcBHVDistanceForPairs,
+                    this,
+                    start_pair,
+                    end_pair,
+                    std::ref(mu),
+                    std::ref(bhv_distances),
+                    std::ref(in_pairs),
+                    std::ref(ABpairs),
+                    std::ref(commonPairs))
+                );
+            }
+
+            // The join function causes this loop to pause until the ith thread finishes
+            for (unsigned i = 0; i < threads.size(); i++) {
+                threads[i].join();
+            }
+
+            // Find largest bhv distance
+            double largest = *max_element(bhv_distances.begin(), bhv_distances.end());
+            if (largest > epsilon) {
+                is_close_enough = false;
+            }
+        }
+        else {
+            // first pair tried is mu[lower] vs. mu[upper-1], which should be the most distant pair
+            // increasing the chances of breaking the loop early if possible
+            for (unsigned i = lower; i < upper - 1; ++i) {
+                for (unsigned j = upper - 1; j > i; --j) {
+                    double bhvdist = calcBHVDistance(mu[i-1], mu[j-1], in_pairs, ABpairs, commonPairs);
+                    if (bhvdist > epsilon) {
+                        is_close_enough = false;
+                        break;
+                    }
                 }
+                if (!is_close_enough)
+                    break;
             }
         }
         return is_close_enough;

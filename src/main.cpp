@@ -12,6 +12,7 @@
 #include <iostream>
 #include <memory>
 #include <numeric>
+#include <thread>
 
 using namespace std;
 
@@ -48,6 +49,7 @@ using namespace boost;
 using namespace op;
 
 // static data member initializations
+mutex OP::_mutex;
 string  OP::_program_name        = "op";
 unsigned     OP::_major_version       = 1;
 unsigned     OP::_minor_version       = 3;

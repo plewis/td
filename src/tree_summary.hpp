@@ -148,7 +148,6 @@ namespace op {
         auto numTaxaBlocks = static_cast<int>(nexusReader.GetNumTaxaBlocks());
         for (int i = 0; i < numTaxaBlocks; ++i)
             {
-            //clear();
             NxsTaxaBlock * taxaBlock = nexusReader.GetTaxaBlock(i);
             //string taxaBlockTitle = taxaBlock->GetTitle();
 
