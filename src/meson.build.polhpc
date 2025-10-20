@@ -8,13 +8,14 @@ lib_system = cpp.find_library('boost_system', dirs: ['/home/pol02003/lib/static'
 lib_filesystem = cpp.find_library('boost_filesystem', dirs: ['/home/pol02003/lib/static'], required: true)
 lib_program_options = cpp.find_library('boost_program_options', dirs: ['/home/pol02003/lib/static'], required: true)
 lib_ncl = cpp.find_library('ncl', dirs: ['/home/pol02003/lib/static'], required: true)
+thread_dep = dependency('threads')
 
 # These lines specify the locations of header files for the NCL, Boost, BeagleLib, and Eigen library
 incl_ncl = include_directories('/home/pol02003/include')
 incl_boost = include_directories('/home/pol02003/boost_1_72_0')
 
 # This line creates the executable file
-executable('op', 'main.cpp', install: true, install_dir: '.', dependencies: [lib_ncl,lib_program_options,lib_system,lib_filesystem], include_directories: [incl_ncl,incl_boost])
+executable('op', 'main.cpp', install: true, install_dir: '.', dependencies: [lib_ncl,lib_program_options,lib_system,lib_filesystem,thread_dep], include_directories: [incl_ncl,incl_boost])
 
 # These lines just copy files to the install directory
 #install_data('treedist.conf', install_dir: '.')

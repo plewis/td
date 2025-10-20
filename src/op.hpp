@@ -157,7 +157,6 @@ namespace op {
         _skip(0),
         _tree_file_names(),
         _lambda(-1.0),
-        _scale_by(1.0),
         _tree_summary(nullptr),
         _frechet_epsilon(0.00001),
         _frechet_n(10),
@@ -1964,12 +1963,20 @@ namespace op {
             assert(mu.size() == k);
             chooseRandomTree(mu[k-1], lot);
 
+            // //temporary!
+            // cerr << "--------------------" << endl;
+            // cerr << "mean tree " << k << "-1 is " << mu[k-1].makeNewick(9,true) << endl;
+            // cerr << "mean tree " << k << "-2 is " << mu[k-2].makeNewick(9,true) << endl;
+
             displaceTreeAlongGeodesic(mu[k-1], mu[k-2], 1.0*k/(k+1));
             if (k >= K) {
                 done = true;
             }
             if (k > N) {
                 done = frechetCloseEnough(mu, k-N, k, epsilon);
+                // //temporary!
+                // cerr << "frechetCloseEnough from " << (k-N) << " to " << k << " is " << (done ? "true" : "false");
+                // cerr << endl;
             }
         }
         mean_tree.setTree(mu[k-1].getTree());
