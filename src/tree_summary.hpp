@@ -164,11 +164,26 @@ namespace op {
             }
             else {
                 // Check that taxon labels in taxa block match those in TreeManip::_taxon_names
+                vector<string> old_names(TreeManip::_taxon_names.begin(), TreeManip::_taxon_names.end());
+                vector<string> new_names;
                 for (unsigned j = 0; j < taxaBlock->GetNumTaxonLabels(); ++j) {
-                    string taxon_name = taxaBlock->GetTaxonLabel(j);
-                    if (TreeManip::_taxon_names[j] != taxon_name) {
-                        throw Xop("Taxon labels in taxa block do not match those from a previous taxa block");
+                    new_names.push_back(taxaBlock->GetTaxonLabel(j));
+                }
+                sort(old_names.begin(), old_names.end());
+                sort(new_names.begin(), new_names.end());
+                bool ok = true;
+                for (unsigned j = 0; j < taxaBlock->GetNumTaxonLabels(); ++j) {
+                    if (old_names[j] != new_names[j]) {
+                        ok = false;
+                        break;
                     }
+                }
+                if (!ok) {
+                    cerr << boost::str(format("%12s %12s %12s") % "taxon" % "prev" % "new") << endl;
+                    for (unsigned j = 0; j < taxaBlock->GetNumTaxonLabels(); ++j) {
+                        cerr << boost::str(format("%12d %12s %12s") % (j+1) % old_names[j] % new_names[j]) << endl;
+                    }
+                    throw Xop("Taxon labels in taxa block do not match those from a previous taxa block");
                 }
             }
 

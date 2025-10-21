@@ -2369,6 +2369,14 @@ namespace op {
         variance /= (ntrees - 1);
 
         // Save the mean tree, variance, HPD interval, and radius
+        string nxsfn = _prefix + ".nex";
+        ofstream mean_file_nexus(nxsfn);
+        mean_file_nexus << "#nexus\n\n";
+        mean_file_nexus << "begin trees;\n";
+        mean_file_nexus << "  tree meantree = " << mean_tree.makeNewick(9, true) << ";\n";
+        mean_file_nexus << "end;\n";
+        mean_file_nexus.close();
+
         string fn = _prefix + ".R";
         ofstream mean_file(fn);
         mean_file << "# " << mean_tree.makeNewick(9, true) << endl;

@@ -247,8 +247,10 @@ namespace op {
             }
             else
             {
-                if (use_names)
-                    newick += str(format(tip_node_format_using_names) % _taxon_names[nd->_number] % nd->_edge_length);
+                if (use_names) {
+                    string with_underscores = std::regex_replace(_taxon_names[nd->_number], std::regex(" "), "_");
+                    newick += str(format(tip_node_format_using_names) % with_underscores % nd->_edge_length);
+                }
                 else
                     newick += str(format(tip_node_format) % (nd->_number + 1) % nd->_edge_length);
                 if (nd->_right_sib)
