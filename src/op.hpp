@@ -50,7 +50,7 @@ namespace op {
                 const vector<pair<Split::treeid_t, Split::treeid_t> > & in_pairs,
                 const vector<Split::split_pair_t> & commonPairs) const;
         double calcKFDistance(unsigned ref_index, unsigned test_index) const;
-        void chooseRandomTree(TreeManip & tm, Lot & lot) const;
+        unsigned chooseRandomTree(TreeManip & tm, Lot & lot) const;
         void displaceTreeAlongGeodesic(TreeManip & start_tree, TreeManip & end_tree, double displacement) const;
         bool frechetCloseEnough(vector<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const;
         unsigned computeFrechetMean(TreeManip & mean_tree) const ;
@@ -109,6 +109,7 @@ namespace op {
         bool                    _output_for_gtp;
         string                  _prefix;
         bool                    _pairwise;
+        bool                    _snapshot;
         bool                    _refdist;
         bool                    _frechet_mean;
         bool                    _save_credible_set;
@@ -116,6 +117,8 @@ namespace op {
         unsigned                _precision;
         unsigned                _random_number_seed;
         vector<unsigned>        _skip;
+        vector<unsigned>        _stride;
+        vector<bool>            _rooted;
         vector<string>          _tree_file_names;
         double                  _lambda;
         vector<double>          _scale_by;
@@ -148,15 +151,15 @@ namespace op {
         _output_for_gtp(false),
         _prefix("outfile"),
         _pairwise(false),
+        _snapshot(false),
         _refdist(false),
         _frechet_mean(false),
         _save_credible_set(false),
         _nthreads(1),
         _precision(9),
         _random_number_seed(1),
-        _skip(0),
         _tree_file_names(),
-        _lambda(-1.0),
+        _lambda(0.5),
         _tree_summary(nullptr),
         _frechet_epsilon(0.00001),
         _frechet_n(10),
@@ -178,9 +181,11 @@ namespace op {
             ("noisy", "show a lot of output (default: no)")
             ("treefile,t",  program_options::value(&_tree_file_names), "name of data file in NEXUS format (required, no default)")
             ("skip", program_options::value(&_skip), "number of trees to skip in specified treefile (default: 0)")
+            ("stride", program_options::value(&_stride), "number of trees to skip before saving (default: 1)")
+            ("rooted", program_options::value(&_rooted), "assume trees are rooted (default: no)")
             ("precision", program_options::value(&_precision)->default_value(9), "number of digits precision to use in outputting distances (default: 9)")
             ("prefix", program_options::value(&_prefix), "filename prefix for output file name (default: 'outfile')")
-            ("lambda", program_options::value(&_lambda), "specify a value between 0 and 1 to calculate tree at that point (assumes starting tree is first tree and ending tree is the second tree in the treefile)")
+            ("lambda", program_options::value(&_lambda), "specify a value in [0,1] to calculate tree at that point (assumes starting tree is first tree and ending tree is the second tree in the treefile)")
             ("pairwise", "calculates pairwise distances (default: pairwise distances not calculated)")
             ("refdist", "calculates distance of the first tree to all other trees (default: distances not calculated)")
             ("frechetmean", "calculate Frechet mean tree and variance (default: mean and variance not calculated)")
@@ -262,6 +267,16 @@ namespace op {
             _refdist = true;
         }
 
+        // If the user specified --refdist on the command line, set _refdist to true
+        if (vm.count("lambda") > 0) {
+            _snapshot = true;
+            if (_lambda < 0.0) {
+                throw Xop("Lambda must be greater than or equal to 0.0");
+            } else if (_lambda > 1.0) {
+                throw Xop("Lambda must be less than or equal to 1.0");
+            }
+        }
+
         // If the user specified --frechet on the command line, set _frechet_mean to true
         if (vm.count("credset") > 0) {
             _save_credible_set = true;
@@ -271,10 +286,10 @@ namespace op {
             buildThreadSchedule();
 
         // Sanity check
-        bool ok = ( _pairwise && !_frechet_mean && !_refdist && _lambda < 0.0);                     // only pairwise chosen
-        ok     |= (!_pairwise &&  _frechet_mean && !_refdist && _lambda < 0.0);                     // only frechet mean chosen
-        ok     |= (!_pairwise && !_frechet_mean &&  _refdist && _lambda < 0.0);                     // only refdist chosen
-        ok     |= (!_pairwise && !_frechet_mean && !_refdist && _lambda > 0.0 && _lambda < 1.0);    // only lambda chosen
+        bool ok = ( _pairwise && !_frechet_mean && !_refdist && !_snapshot);    // only pairwise chosen
+        ok     |= (!_pairwise &&  _frechet_mean && !_refdist && !_snapshot);    // only frechet mean chosen
+        ok     |= (!_pairwise && !_frechet_mean &&  _refdist && !_snapshot);    // only refdist chosen
+        ok     |= (!_pairwise && !_frechet_mean && !_refdist &&  _snapshot);    // only snapshot chosen
 
         if (!ok) {
             cerr << "Sorry, you can only do one of these things during a single run: " << endl;
@@ -286,15 +301,32 @@ namespace op {
             cerr << "  pairwise = " << (_pairwise ? "yes" : "no") << endl;
             cerr << "  frechet  = " << (_frechet_mean ? "yes" : "no") << endl;
             cerr << "  refdist  = " << (_refdist ? "yes" : "no") << endl;
-            cerr << "  lambda   = " << _lambda << endl;
+            cerr << "  lambda   = " << (_snapshot ? "yes" : "no") << endl;
             throw Xop("Program aborted.");
         }
 
         if (_skip.empty()) {
+            // no trees are skipped by default
             _skip.resize(_tree_file_names.size(), 0);
         }
         else if (_skip.size() != _tree_file_names.size()) {
-            throw Xop("If specified, a skip setting must be provided for every treefile");
+            throw Xop("If specified for any treefile, a skip setting must be provided for every treefile");
+        }
+
+        if (_stride.empty()) {
+            // stride is 1 by default
+            _stride.resize(_tree_file_names.size(), 1);
+        }
+        else if (_stride.size() != _tree_file_names.size()) {
+            throw Xop("If specified for any treefile, a stride setting must be provided for every treefile");
+        }
+
+        if (_rooted.empty()) {
+            // trees are assumed to be unrooted by default
+            _rooted.resize(_tree_file_names.size(), false);
+        }
+        else if (_rooted.size() != _tree_file_names.size()) {
+            throw Xop("If specified for any treefile, rooted setting must be provided for every treefile");
         }
 
         if (_scale_by.empty()) {
@@ -318,12 +350,12 @@ namespace op {
                 const Split::treeid_t & Blvs,
                 vector<Split::split_pair_t> & commonPairs) const {
         if (_noisy) {
-            cout << "Leaves from starting tree:" << endl;
+            cout << "\nLeaves from starting tree:" << endl;
             for (auto & a : Alvs) {
                 cout << "  " << a.createPatternRepresentation(true) << endl;
             }
 
-            cout << "Leaves from ending tree:" << endl;
+            cout << "\nLeaves from ending tree:" << endl;
             for (auto & b : Blvs) {
                 cout << "  " << b.createPatternRepresentation(true) << endl;
             }
@@ -357,6 +389,10 @@ namespace op {
             back_inserter(common_edges)
         );
 
+        if (_noisy) {
+            cout << "\nCommon edges:" << endl;
+        }
+
         double common_edge_contribution_squared = 0.0;
         for (auto & s : common_edges) {
             auto itA = find(A.begin(), A.end(), s);
@@ -365,13 +401,43 @@ namespace op {
             double edgeB = itB->getEdgeLen();
             common_edge_contribution_squared += pow(edgeA-edgeB, 2);
             commonPairs.emplace_back(*itA, *itB);
+            if (_noisy) {
+                double diff = edgeB-edgeA;
+                cout << boost::str(format("%12.9f: %s\n") % diff % itA->createPatternRepresentation(false));
+            }
         }
+
+        if (_noisy) {
+            cout << "\nCommon edge contribution (squared): " << setprecision(9) << common_edge_contribution_squared << endl;
+        }
+
+        //@ //temporary!
+        //@ Split test;
+        //@ test.resize(static_cast<unsigned>(TreeManip::_taxon_names.size()));
+        //@ test.setBitAt(63);
+        //@ test.setBitAt(64);
 
         // Count the number of splits in B compatible with each split in A (and vice versa)
         map<const Split *, unsigned> acompatibilities;
         map<const Split *, unsigned> bcompatibilities;
         for (auto & a : A) {
+
+            //@ //temporary!
+            //@ if (a == test) {
+            //@     cerr << "Found split 64-65" << endl;
+            //@     cerr << a.createPatternRepresentation(false) << endl;
+            //@     cerr << endl;
+            //@ }
+
             for (auto & b : B) {
+
+                //@ //temporary!
+                //@ if (b.isBitSetAt(63) || b.isBitSetAt(64)) {
+                //@     cerr << "Found split with 64 or 65" << endl;
+                //@     cerr << b.createPatternRepresentation(false) << endl;
+                //@     cerr << endl;
+                //@ }
+
                 if (a.compatibleWith(b)) {
                     acompatibilities[&a]++;
                     bcompatibilities[&b]++;
@@ -379,7 +445,12 @@ namespace op {
             }
         }
 
+        if (_noisy) {
+            cout << "\nEdges in starting tree compatible with all splits in ending tree:" << endl;
+        }
+
         // Add splits in A that are compatible with all splits in B to common_edges
+        unsigned nAcompatB = 0;
         for (auto & apair : acompatibilities) {
             if (apair.second == B.size()) {
                 // This split is compatible with every split in the other tree, so add it to the vector
@@ -388,11 +459,23 @@ namespace op {
                     common_edges.push_back(*apair.first);
                     common_edge_contribution_squared += pow(apair.first->getEdgeLen(), 2);
                     commonPairs.emplace_back(*(apair.first), Split());
+                    nAcompatB++;
+                    if (_noisy) {
+                        cout << apair.first->createPatternRepresentation(true) << endl;
+                    }
                 }
             }
         }
 
+        if (_noisy) {
+            if (nAcompatB == 0) {
+                cout << "  None found." << endl;
+            }
+            cout << "\nEdges in ending tree compatible with all splits in starting tree:" << endl;
+        }
+
         // Add splits in B that are compatible with all splits in A to common_edges
+        unsigned nBcompatA = 0;
         for (auto & bpair : bcompatibilities) {
             if (bpair.second == A.size()) {
                 // This split is compatible with every split in the other tree, so add it to the vector
@@ -401,17 +484,23 @@ namespace op {
                     common_edges.push_back(*bpair.first);
                     common_edge_contribution_squared += pow(bpair.first->getEdgeLen(), 2);
                     commonPairs.emplace_back(Split(), *(bpair.first));
+                    nBcompatA++;
+                    if (_noisy) {
+                        cout << bpair.first->createPatternRepresentation(true) << endl;
+                    }
                 }
             }
         }
 
         if (_noisy) {
-            cout << "\nCommon edges:" << endl;
-            for (auto & s : common_edges) {
-                cout << "  " << s.createPatternRepresentation() << endl;
+            if (nBcompatA == 0) {
+                cout << "  None found." << endl;
             }
-            cout << str(format("Common edge contribution (squared) = %.9f") % common_edge_contribution_squared) << endl;
+            if (nAcompatB + nBcompatA > 0) {
+                cout << "\nCommon edge contribution (squared): " << setprecision(9) << common_edge_contribution_squared << endl;
+            }
         }
+
         return common_edge_contribution_squared;
     }
 
@@ -1299,6 +1388,8 @@ namespace op {
             double C2len = opCalcTreeIDLength(AB2.first);
             double D1len = opCalcTreeIDLength(AB1.second);
             double D2len = opCalcTreeIDLength(AB2.second);
+            //double fraction1 = C1len/(C1len + D1len);
+            //double fraction2 = C2len/(C2len + D2len);
             bool P2 = C1len/D1len < C2len/D2len;
             success = !A_is_trivial && !B_is_trivial && P2;
 
@@ -1326,7 +1417,7 @@ namespace op {
                 // for (auto & b : AB.second) {
                 //     cout << "    " << b.createPatternRepresentation() << endl;
                 // }
-                cout << "  Output A1 vertices:" << endl;
+                cout << "  A1 vertices:" << endl;
                 if (AB1.first.empty()) {
                     cout << "    empty set" << endl;
                 }
@@ -1335,16 +1426,7 @@ namespace op {
                         cout << "    " << a.createPatternRepresentation(true) << endl;
                     }
                 }
-                cout << "  Output B1 vertices:" << endl;
-                if (AB1.second.empty()) {
-                    cout << "    empty set" << endl;
-                }
-                else {
-                    for (auto & b : AB1.second) {
-                        cout << "    " << b.createPatternRepresentation(true) << endl;
-                    }
-                }
-                cout << "  Output A2 vertices:" << endl;
+                cout << "  A2 vertices:" << endl;
                 if (AB2.first.empty()) {
                     cout << "    empty set" << endl;
                 }
@@ -1353,7 +1435,16 @@ namespace op {
                         cout << "    " << a.createPatternRepresentation(true) << endl;
                     }
                 }
-                cout << "  Output B2 vertices:" << endl;
+                cout << "  B1 vertices:" << endl;
+                if (AB1.second.empty()) {
+                    cout << "    empty set" << endl;
+                }
+                else {
+                    for (auto & b : AB1.second) {
+                        cout << "    " << b.createPatternRepresentation(true) << endl;
+                    }
+                }
+                cout << "  B2 vertices:" << endl;
                 if (AB2.second.empty()) {
                     cout << "    empty set" << endl;
                 }
@@ -1396,17 +1487,29 @@ namespace op {
             }
         }
 
+        //@ //temporary!
+        //@ size_t nA = 0;
+        //@ size_t nB = 0;
+        //@ for (const auto & ab : ABpairs) {
+        //@     nA += ab.first.size();
+        //@     nB += ab.second.size();
+        //@ }
+        //@ if (nA != nB) {
+        //@     cerr << endl;
+        //@ }
+
         // Calculate geodesic distance
         unsigned ratio_index = 1;
         double geodesic_distance = 0.0;
         for (auto & AB : support) {
             double dropped_length = opCalcTreeIDLength(AB.first);
             double added_length   = opCalcTreeIDLength(AB.second);
+            double fraction = dropped_length/(dropped_length + added_length);
             double ratio = dropped_length/added_length;
             geodesic_distance += pow(dropped_length + added_length, 2);
 
             if (_noisy) {
-                cout << str(format("\nRatio %d: %.9f") % ratio_index % ratio) << endl;
+                cout << str(format("\nRatio %d: %.9f (lambda = %.9f)") % ratio_index % ratio % fraction) << endl;
                 cout << "  Edges dropped:" << endl;
                 for (auto & a : AB.first) {
                     cout << "    " << a.createPatternRepresentation() << endl;
@@ -1416,8 +1519,10 @@ namespace op {
                     cout << "    " << b.createPatternRepresentation() << endl;
                 }
             }
+
             ++ratio_index;
         }
+
         geodesic_distance = sqrt(geodesic_distance);
         return geodesic_distance;
     }
@@ -1426,10 +1531,15 @@ namespace op {
         string newick = _tree_summary->getNewick(tree_index);
 
         bool isrooted = _tree_summary->isRooted(tree_index);
-        if (!isrooted) {
-            throw Xop("Trees must be rooted in this version");
+        //if (!isrooted) {
+        //    throw Xop("Trees must be rooted in this version");
+        //}
+        try {
+            tm.buildFromNewick(newick, /*rooted*/isrooted, /*allow_polytomies*/true);
+        } catch (Xop & e) {
+            cerr << "Could not build tree with index " << tree_index << endl;
+            throw e;
         }
-        tm.buildFromNewick(newick, /*rooted*/isrooted, /*allow_polytomies*/true);
         //tm.setLeafNames(_taxon_labels);
     }
 
@@ -1459,7 +1569,7 @@ namespace op {
         }
 
         if (_noisy) {
-            cout << "Internal splits from starting tree:" << endl;
+            cout << "\nInternal splits from starting tree:" << endl;
             for (const auto& a : A) {
                 cout << "  " << a.createPatternRepresentation(true) << endl;
             }
@@ -1483,7 +1593,7 @@ namespace op {
         }
 
         if (_noisy) {
-            cout << "Internal splits from ending tree:" << endl;
+            cout << "\nInternal splits from ending tree:" << endl;
             for (const auto& b : B) {
                 cout << "  " << b.createPatternRepresentation(true) << endl;
             }
@@ -1746,13 +1856,13 @@ namespace op {
     }
 #endif
 
-    inline void OP::chooseRandomTree(TreeManip & tm, Lot & lot) const {
+    inline unsigned OP::chooseRandomTree(TreeManip & tm, Lot & lot) const {
         int n = static_cast<int>(_tree_summary->getNumTrees());
         auto index = static_cast<unsigned>(lot.randint(0, n-1));
         string newick = _tree_summary->getNewick(index);
         bool rooted = _tree_summary->isRooted(index);
-        assert(rooted);
         tm.buildFromNewick(newick, rooted, /*allow_polytomies*/true);
+        return index;
     }
 
     inline void OP::displaceTreeAlongGeodesic(TreeManip & start_tree, TreeManip & end_tree, double displacement) const {
@@ -1795,14 +1905,35 @@ namespace op {
             if (lambda <= lambda_leg) {
                 break;
             }
+
+            //@ //temporary!
+            //@ start_tree.debugCheckForSinNombreLeaves("before adding/dropping splits");
+            //@ unsigned ndropped = static_cast<unsigned>(ABpairs[leg].first.size());
+            //@ unsigned nadded = static_cast<unsigned>(ABpairs[leg].second.size());
+            //@ if (ndropped == 8 && nadded == 9) {
+            //@     cerr << endl;
+            //@ }
+
             for (auto & asplit : ABpairs[leg].first) {
                 // Drop asplit from the start_tree
                 start_tree.dropSplit(asplit);
             }
+
+            //@ //temporary!
+            //@ string msg1 = str(format("after dropping %d splits") % ndropped);
+            //@ start_tree.debugCheckForSinNombreLeaves(msg1);
+            //@ cerr << start_tree.debugCountUnusedNodes() << " nodes unused after dropping " << ndropped << " splits" << endl;
+
             for (auto & bsplit : ABpairs[leg].second) {
                 // Add bsplit to the start_tree
                 start_tree.addSplit(bsplit);
             }
+
+            //@ //temporary!
+            //@ string msg2 = str(format("after adding %d splits") % nadded);
+            //@ start_tree.debugCheckForSinNombreLeaves(msg2);
+            //@ cerr << start_tree.debugCountUnusedNodes() << " nodes unused after adding " << nadded << " splits" << endl;
+
             ++leg;
         }
 
@@ -1955,20 +2086,27 @@ namespace op {
         Lot lot;
         lot.setSeed(_random_number_seed);
         mu.emplace_back();
-        chooseRandomTree(mu[k-1], lot);
+        unsigned prev_index = chooseRandomTree(mu[k-1], lot);
         bool done = false;
+        unsigned curr_index = 0;
         while (!done) {
             ++k;
             mu.emplace_back();
             assert(mu.size() == k);
-            chooseRandomTree(mu[k-1], lot);
+            curr_index = chooseRandomTree(mu[k-1], lot);
+            double displacement_lambda = 1.0*k/(k+1);
 
-            // //temporary!
-            // cerr << "--------------------" << endl;
-            // cerr << "mean tree " << k << "-1 is " << mu[k-1].makeNewick(9,true) << endl;
-            // cerr << "mean tree " << k << "-2 is " << mu[k-2].makeNewick(9,true) << endl;
+            //@ //temporary!
+            //@ cerr << "--------------------" << endl;
+            //@ cerr << "tree mu_" << k << "_minus_1 is " << mu[k-1].makeNewick(9,true) << endl;
+            //@ cerr << "tree mu_" << k << "_minus_2 is " << mu[k-2].makeNewick(9,true) << endl;
+            //@ cerr << "index of mu[" << k << "-2] is " << prev_index << endl;
+            //@ cerr << "index of mu[" << k << "-1] is " << curr_index << endl;
+            //@ cerr << "displacement_lambda is " << setprecision(9) << displacement_lambda << endl;
+            //@ cerr << endl;
 
             displaceTreeAlongGeodesic(mu[k-1], mu[k-2], 1.0*k/(k+1));
+            prev_index = curr_index;
             if (k >= K) {
                 done = true;
             }
@@ -2410,7 +2548,6 @@ namespace op {
         mean_file << "\n" << rscript << endl;
         mean_file.close();
 
-        //temporary!
         if (log_posteriors_available && _save_credible_set) {
             // Save furthest tree from mean that is nevertheless inside the 95% HPD credible set
             string xfn = _prefix + "-extreme.tre";
@@ -2456,12 +2593,12 @@ namespace op {
         unsigned ntrees_prev = 0;
         for (const auto & fn : _tree_file_names) {
             // Assume that the tree file is in Nexus format
-            _tree_summary->readTreefile(fn, _skip[which_treefile], _scale_by[which_treefile]);
+            _tree_summary->readTreefile(fn, _skip[which_treefile], _stride[which_treefile], _rooted[which_treefile], _scale_by[which_treefile]);
             ntrees = _tree_summary->getNumTrees();
             if (ntrees - ntrees_prev == 0) {
                 // Failed to read any trees, so the file may not be in Nexus format.
                 // Assume next that the file is in RevBayes format.
-                _tree_summary->readRevBayesTreefile(fn, _skip[which_treefile], _scale_by[which_treefile]);
+                _tree_summary->readRevBayesTreefile(fn, _skip[which_treefile], _stride[which_treefile], _rooted[which_treefile], _scale_by[which_treefile]);
                 ntrees = _tree_summary->getNumTrees();
             }
             ntrees_prev = ntrees;
@@ -2482,6 +2619,16 @@ namespace op {
                 outf << log_posterior << endl;
             }
             outf.close();
+        }
+
+        if (_noisy) {
+            cout << "\nRead " << ntrees << " trees from " << _tree_file_names.size() << " tree files." << endl;
+            cout << "\nTaxon names:" << endl;
+            unsigned i = 1;
+            for (auto & nm : TreeManip::_taxon_names) {
+                cout << str(format("%12d %s\n") % i % nm);
+                i++;
+            }
         }
     }
 
@@ -2553,7 +2700,7 @@ namespace op {
         try {
             readTrees();
 
-            if (_lambda >= 0.0 && _lambda <= 1.0) {
+            if (_snapshot) {
                 moveAlongPath();
                 return;
             }

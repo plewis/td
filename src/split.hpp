@@ -50,6 +50,7 @@ namespace op
             bool                                                compatibleWith(const Split & other) const;
 
             void                                                setBitAt(unsigned leaf_index);
+            bool                                                isBitSetAt(unsigned leaf_index) const;
             void                                                addSplit(const Split & other);
 
             string                                              createPatternRepresentation(bool show_edge_length = false) const;
@@ -201,9 +202,9 @@ inline void Split::resize(unsigned nleaves) {
     clear();
 }
 
-    inline void Split::setEdgeLen(double edgelen) {
+inline void Split::setEdgeLen(double edgelen) {
     _edgelen = edgelen;
-    }
+}
 
 inline double Split::getEdgeLen() const {
     return _edgelen;
@@ -215,16 +216,23 @@ inline void Split::setBitAt(unsigned leaf_index) {
     unsigned bit_index = leaf_index - unit_index*_bits_per_unit;
     auto bit_to_set = static_cast<split_unit_t>(1) << bit_index;
     _bits[unit_index] |= bit_to_set;
-    }
+}
+
+inline bool Split::isBitSetAt(unsigned leaf_index) const {
+    assert(leaf_index < _nleaves);
+    unsigned unit_index = leaf_index/_bits_per_unit;
+    unsigned bit_index = leaf_index - unit_index*_bits_per_unit;
+    auto bit_to_set = static_cast<split_unit_t>(1) << bit_index;
+    return static_cast<bool>(_bits[unit_index] & bit_to_set);
+}
 
 inline void Split::addSplit(const Split & other) {
     auto nunits = static_cast<unsigned>(_bits.size());
     assert(nunits == other._bits.size());
-    for (unsigned i = 0; i < nunits; ++i)
-        {
+    for (unsigned i = 0; i < nunits; ++i) {
         _bits[i] |= other._bits[i];
-        }
     }
+}
 
 inline unsigned Split::getNumBitsSet() const {
     unsigned n = 0;
@@ -268,7 +276,81 @@ inline void Split::invertBits() {
     }
 }
 
+#if 1
 inline bool Split::compatibleWith(const Split & other) const {
+    // Suppose units each contain 4 bits.
+    // Example of incompatible splits:
+    //       a = |0001|1000|
+    //       b = |0001|0100|
+    //      ab = |0001|0000| equals neither a nor b --> false
+    // Example of incompatible splits:
+    //       a = |0001|1000|
+    //       b = |0010|0100|
+    //      ab = |0000|0000| equals neither a nor b --> false
+    // Example of incompatible splits:
+    //       a = |0001|1100|
+    //       b = |0011|0000|
+    //      ab = |0001|0000| equals neither a nor b --> false
+    // Example of compatible splits:
+    //       a = |0001|1100|
+    //       b = |0001|0100|
+    //      ab = |0001|0100| equals b --> true
+    // Example of compatible splits:
+    //       a = |0001|0000|
+    //       b = |1011|0000|
+    //      ab = |0001|0000| equals a --> true
+    const split_t & other_bits = other._bits;
+    assert(_bits.size() == other_bits.size());
+    bool ab_equals_a = true;
+    bool ab_equals_b = true;
+    for (unsigned i = 0; i < _bits.size(); ++i) {
+        split_unit_t a  = _bits[i];
+        split_unit_t b  = other_bits[i];
+        split_unit_t ab = (a & b);
+        if (ab != a)
+            ab_equals_a = false;
+        if (ab != b)
+            ab_equals_b = false;
+        //bool equals_a   = (a_and_b == a);
+        //bool equals_b   = (a_and_b == b);
+        //if (a_and_b && !(equals_a || equals_b)) {
+        //    // A failure of any unit to be compatible makes the entire split incompatible
+        //    is_compatible = false;
+        //    break;
+        //}
+    }
+    bool is_compatible = ab_equals_a || ab_equals_b;
+    return is_compatible;
+}
+#else
+    // This version represents a bug only discovered 2025-10-28
+    // If set bits straddle two units, then the separate units can be compatible
+    // separately but not jointly!
+    // Suppose units each contain 4 bits
+    //     a = |0001|1000|
+    //     b = |0001|0100|
+    // unit 0:
+    //          a = |1000|
+    //          b = |0100|
+    //      a & b = |0000| = false
+    //   equals_a = false
+    //   equals_b = false
+    //   equals_a || equals_b = false
+    //   !(equals_a || equals_b) = true
+    //   is_compatible = true
+    // unit 1:
+    //          a = |0001|
+    //          b = |0001|
+    //      a & b = |0001| = true
+    //   equals_a = true
+    //   equals_b = true
+    //   equals_a || equals_b = true
+    //   !(equals_a || equals_b) = false
+    //   is_compatible = true
+    // So, the splits are in reality not compatible, but this version
+    // says they are because each unit is comptible!
+    //
+    inline bool Split::compatibleWith(const Split & other) const {
     const split_t & other_bits = other._bits;
     assert(_bits.size() == other_bits.size());
     bool is_compatible = true;
@@ -286,6 +368,7 @@ inline bool Split::compatibleWith(const Split & other) const {
     }
     return is_compatible;
 }
+#endif
 
 inline bool Split::subsumedIn(const Split & other) const {
     // Example: this is NOT subsumed in other
@@ -317,7 +400,7 @@ inline bool Split::subsumedIn(const Split & other) const {
 inline string Split::createPatternRepresentation(bool show_edge_length) const {
     string s;
     if (show_edge_length)
-        s += str(format("%.3f: ") % _edgelen);
+        s += str(format("%.9f: ") % _edgelen);
     unsigned ntax_added = 0;
     for (unsigned long b : _bits) {
         for (unsigned j = 0; j < _bits_per_unit; ++j) {
