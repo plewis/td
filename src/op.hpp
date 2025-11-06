@@ -64,8 +64,11 @@ namespace op {
             const Split::treeid_t & A,
             const Split::treeid_t & B,
             vector<Split::split_pair_t> & commonPairs) const;
+//        void opSplitAtCommonEdges(
+//            const vector<Split> & common_edges,
+//            vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const;
         void opSplitAtCommonEdges(
-            const vector<Split> & common_edges,
+            const vector<Split::split_pair_t> & commonPairs,
             vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const;
 #if defined(OP_SAVE_DOT_FILE)
         static string opCreateVertexLabel(string name, string capacity, string edgelen, string bipartition);
@@ -103,7 +106,7 @@ namespace op {
             Split::treeid_pair_t & AB1,
             Split::treeid_pair_t & AB2) const;
         double opCalcGeodesicDist(
-            vector<Split::treeid_pair_t> & ABpairs) const;
+            const Split::treeid_pair_t & inpair) const;
 
         bool                    _noisy;
         bool                    _output_for_gtp;
@@ -504,17 +507,22 @@ namespace op {
         return common_edge_contribution_squared;
     }
 
-    inline void OP::opSplitAtCommonEdges(const vector<Split> & common_edges, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
+    inline void OP::opSplitAtCommonEdges(const vector<Split::split_pair_t> & commonPairs, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
         vector<pair<Split::treeid_t,Split::treeid_t> > out_pairs;
-        for (auto & common : common_edges) {
+
+        for (auto & common_pair : commonPairs) {
+            // We just need the first member of the pair because the second member
+            // is the same split only with a potentially different edge length
+            const Split & common = common_pair.first;
+
             // //temporary!
             // cout << "\ncommon: " << common.createPatternRepresentation() << endl;
 
             // Create a mask that can be used to zero out all bits in common except the first
-            Split mask = common;
-            mask.invertBits();
-            unsigned first_common_bit = common.findFirstSetBit();
-            mask.setBitAt(first_common_bit);
+            //Split mask = common;
+            //mask.invertBits();
+            //unsigned first_common_bit = common.findFirstSetBit();
+            //mask.setBitAt(first_common_bit);
 
             // //temporary!
             // cout << "  mask: " << mask.createPatternRepresentation() << endl;
@@ -526,7 +534,7 @@ namespace op {
                 Split::treeid_t & a_splits = inpair.first;
                 Split::treeid_t & b_splits = inpair.second;
 
-                // Create split sets to hold splits subsumed in s vs. other splits
+                // Create split sets to hold splits subsumed in common vs. other splits
                 Split::treeid_t a_common_splits, b_common_splits;
                 Split::treeid_t a_other_splits, b_other_splits;
 
@@ -538,9 +546,10 @@ namespace op {
                             a_common_splits.insert(asplit);
                         }
                         else {
-                            Split masked = asplit;
-                            masked.bitwiseAnd(mask);
-                            a_other_splits.insert(masked);
+                            //Split masked = asplit;
+                            //masked.bitwiseAnd(mask);
+                            //a_other_splits.insert(masked);
+                            a_other_splits.insert(asplit);
                         }
                     }
                 }
@@ -550,25 +559,21 @@ namespace op {
                 for (auto & bsplit : b_splits) {
                     // cout << "  bsplit: " << bsplit.createPatternRepresentation();
                     bool is_common = (bsplit == common);
-                    if (is_common) {
-                        // cout << " (common)" << endl;
-                    }
-                    else {
+                    if (!is_common) {
                         if (bsplit.subsumedIn(common)) {
-                            // cout << " (subsumed in common)" << endl;
                             b_common_splits.insert(bsplit);
                         }
                         else {
-                            // cout << " (other)" << endl;
-                            Split masked = bsplit;
-                            masked.bitwiseAnd(mask);
-                            // cout << "  masked: " << masked.createPatternRepresentation() << endl;
-                            b_other_splits.insert(masked);
+                            //Split masked = bsplit;
+                            //masked.bitwiseAnd(mask);
+                            //b_other_splits.insert(masked);
+                            b_other_splits.insert(bsplit);
                         }
                     }
                 }
 
                 // Create two new tree pairs (a_common_splits, b_common_splits) and (a_other_splits, b_other_splits)
+                //TODO: no need to emplace empty sets
                 out_pairs.emplace_back(a_common_splits, b_common_splits);
                 out_pairs.emplace_back(a_other_splits, b_other_splits);
 
@@ -590,6 +595,7 @@ namespace op {
                     for (auto & bsplit : b_other_splits) {
                         cout << "    " << bsplit.createPatternRepresentation() << endl;
                     }
+                    cout << endl;
                 }
             }
 
@@ -868,9 +874,6 @@ namespace op {
                 b._parent_edge = nullptr;
             }
             sink._parent_edge = nullptr;
-
-            //
-
 
             // Add the source to the route
             route.push_back(&source);
@@ -1217,6 +1220,14 @@ namespace op {
         vector<OPVertex> avect(AB.first.size());
         vector<OPVertex> bvect(AB.second.size());
 
+        //@ //temporary!
+        //@ bool show_split_representations = false;
+        //@ if (OP::_graph_number == 15) {
+        //@     cerr << "***** Entering OP::opRefineSupport()..." << endl;
+        //@     cerr << "  graph number is " << OP::_graph_number << endl;
+        //@     show_split_representations = true;
+        //@ }
+
         //                                      23  123  456  123456
         //vector<unsigned> a_splits_in_order = { 6,   7,  56,     63};
 
@@ -1231,6 +1242,12 @@ namespace op {
         for (auto & a : AB.first) {
             avect[aindex]._split = &a;
             avect[aindex]._weight = pow(a.getEdgeLen(),2)/asum;
+
+            //@ //temporary!
+            //@ if (show_split_representations) {
+            //@     cerr << "a[" << aindex << "] = " << a.createPatternRepresentation() << "   weight = " << avect[aindex]._weight << endl;
+            //@ }
+
             aindex++;
         }
 
@@ -1242,29 +1259,17 @@ namespace op {
         for (auto & b : AB.second) {
             bsum += pow(b.getEdgeLen(),2);
         }
-#if 0 //temporary!
-        //                                    25  67  2567  34  234567
-        vector<unsigned> b_splits_in_order = {18, 96,  114, 12,    126};
-        for (auto & b : AB.second) {
-            unsigned long bvalue = b.getBits()[0];
-            bindex = 99;
-            for (unsigned z = 0; z < b_splits_in_order.size(); z++) {
-                if (bvalue == b_splits_in_order[z]) {
-                    bindex = z;
-                    break;
-                }
-            }
-            assert(bindex < 99);
-            bvect[bindex]._split = &b;
-            bvect[bindex]._weight = pow(b.getEdgeLen(),2)/bsum;
-        }
-#else
         for (auto & b : AB.second) {
             bvect[bindex]._split = &b;
             bvect[bindex]._weight = pow(b.getEdgeLen(),2)/bsum;
+
+            //@ //temporary!
+            //@ if (show_split_representations) {
+            //@     cerr << "b[" << bindex << "] = " << b.createPatternRepresentation() << "   weight = " << bvect[bindex]._weight << endl;
+            //@ }
+
             bindex++;
         }
-#endif
 
         // Create the incompatibility graph
         // A vertices go on the left, B vertices go on the right, and edges connect an A vertex
@@ -1294,6 +1299,13 @@ namespace op {
             source._edges.push_back(&source_forward_edge);
         }
 
+        //@ //temporary!
+        //@ if (show_split_representations) {
+        //@     if (avect.size() == 4 && bvect.size() == 4) {
+        //@         cerr << endl;
+        //@     }
+        //@ }
+
         // Create edges from A-vertices to B-vertices
         for (unsigned i = 0; i < asize; i++) {
             // Get split associated with avect[i]
@@ -1303,7 +1315,20 @@ namespace op {
                 // Get split associated with bvect[j]
                 const Split * b = bvect[j]._split;
                 assert(b);
+
+                //@ //temporary!
+                //@ if (show_split_representations) {
+                //@     cerr << "a = " << a->createPatternRepresentation() << endl;
+                //@     cerr << "b = " << b->createPatternRepresentation() << endl;
+                //@ }
+
                 if (!a->compatibleWith(*b)) {
+                    //@ //temporary!
+                    //@ if (show_split_representations) {
+                    //@     cerr << "--> INCOMPATIBLE" << endl;
+                    //@     cerr << endl;
+                    //@ }
+
                     nincompatibilities++;
 
                     // Create a forward edge in the incompatibility graph
@@ -1317,6 +1342,13 @@ namespace op {
                     forward_edge._open = true;
                     avect[i]._edges.emplace_back(&forward_edge);
                 }
+                //@ else {
+                //@     //temporary!
+                //@     if (show_split_representations) {
+                //@         cerr << "--> compatible" << endl;
+                //@         cerr << endl;
+                //@     }
+                //@ }
             }
         }
 
@@ -1459,8 +1491,10 @@ namespace op {
         return success;
     }
 
-    inline double OP::opCalcGeodesicDist(vector<Split::treeid_pair_t> & ABpairs) const {
+    inline double OP::opCalcGeodesicDist(const Split::treeid_pair_t & inpair) const {
         // Assumes a_splits and b_splits have no common edges
+        vector<Split::treeid_pair_t> ABpairs;
+        ABpairs.push_back(inpair);
         vector<Split::treeid_pair_t> support;
         bool done = false;
         while (!done) {
@@ -1602,6 +1636,10 @@ namespace op {
         // Find common edges and calculate the contribution of common edge lengths to the geodesic
         double common_edge_contribution_squared = opFindCommonEdges(A, B, commonPairs);
 
+#if 1
+        in_pairs.emplace_back(A,B);
+        opSplitAtCommonEdges(commonPairs, in_pairs);
+#else
         if (!commonPairs.empty()) {
             // Remove splits representing common edges from both A and B
             for (auto & cpair : commonPairs) {
@@ -1612,6 +1650,7 @@ namespace op {
             }
         }
         in_pairs.emplace_back(A,B);
+#endif
 
         // Calculate the contribution of leaf edges to the geodesic
         double leaf_contribution_squared = opCalcLeafContribution(Alvs, Blvs, commonPairs);
@@ -1626,17 +1665,17 @@ namespace op {
 
             if (_noisy) {
                 cout << "  A splits:" << endl;
-                for (const auto& a : ABpairs[0].first) {
+                for (const auto& a : inpair.first) {
                     cout << "    " << a.createPatternRepresentation(true) << endl;
                 }
 
                 cout << "  B splits:" << endl;
-                for (const auto& b : ABpairs[0].second) {
+                for (const auto& b : inpair.second) {
                     cout << "    " << b.createPatternRepresentation(true) << endl;
                 }
             }
 
-            double L = opCalcGeodesicDist(ABpairs);
+            double L = opCalcGeodesicDist(inpair);
 
             if (_noisy)
                 cout << str(format("  L for tree pair %d = %.9f") % pair_index % L) << endl;

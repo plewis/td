@@ -282,44 +282,40 @@ inline bool Split::compatibleWith(const Split & other) const {
     // Example of incompatible splits:
     //       a = |0001|1000|
     //       b = |0001|0100|
-    //      ab = |0001|0000| equals neither a nor b --> false
-    // Example of incompatible splits:
+    //      ab = |0001|0000| > 0 and equals neither a nor b --> false
+    // Example of compatible splits:
     //       a = |0001|1000|
     //       b = |0010|0100|
-    //      ab = |0000|0000| equals neither a nor b --> false
+    //      ab = |0000|0000| equals 0
     // Example of incompatible splits:
     //       a = |0001|1100|
     //       b = |0011|0000|
-    //      ab = |0001|0000| equals neither a nor b --> false
+    //      ab = |0001|0000| > 0 and equals neither a nor b --> false
     // Example of compatible splits:
     //       a = |0001|1100|
     //       b = |0001|0100|
-    //      ab = |0001|0100| equals b --> true
+    //      ab = |0001|0100| > 0 and equals b --> true
     // Example of compatible splits:
     //       a = |0001|0000|
     //       b = |1011|0000|
-    //      ab = |0001|0000| equals a --> true
+    //      ab = |0001|0000| > 0 and equals a --> true
     const split_t & other_bits = other._bits;
     assert(_bits.size() == other_bits.size());
     bool ab_equals_a = true;
     bool ab_equals_b = true;
+    bool a_and_b_zero = true;
     for (unsigned i = 0; i < _bits.size(); ++i) {
         split_unit_t a  = _bits[i];
         split_unit_t b  = other_bits[i];
         split_unit_t ab = (a & b);
-        if (ab != a)
+        if (ab > 0)
+            a_and_b_zero = false;
+        if (ab && ab != a)
             ab_equals_a = false;
-        if (ab != b)
+        if (ab && ab != b)
             ab_equals_b = false;
-        //bool equals_a   = (a_and_b == a);
-        //bool equals_b   = (a_and_b == b);
-        //if (a_and_b && !(equals_a || equals_b)) {
-        //    // A failure of any unit to be compatible makes the entire split incompatible
-        //    is_compatible = false;
-        //    break;
-        //}
     }
-    bool is_compatible = ab_equals_a || ab_equals_b;
+    bool is_compatible = a_and_b_zero || (ab_equals_a || ab_equals_b);
     return is_compatible;
 }
 #else
