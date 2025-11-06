@@ -209,7 +209,7 @@ namespace op {
                 j1 = _rowsol[i];
                 min = numeric_limits<double>::max();
                 for (j = 0; j < _dim; j++)
-                    if (j != j1)
+                    if (static_cast<int>(j) != j1)
                         if (_assigncost[i][j] - _v[j] < min) min = _assigncost[i][j] - _v[j];
                 _v[j1] = _v[j1] - min;
             }
@@ -380,7 +380,7 @@ namespace op {
                 j1 = endofpath;
                 endofpath = _rowsol[i];
                 _rowsol[i] = j1;
-            } while (i != freerow);
+            } while (static_cast<int>(i) != freerow);
         }
 
         debugLAP("After augmenting solution for each free row");

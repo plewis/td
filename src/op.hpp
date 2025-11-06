@@ -1636,7 +1636,7 @@ namespace op {
         // Find common edges and calculate the contribution of common edge lengths to the geodesic
         double common_edge_contribution_squared = opFindCommonEdges(A, B, commonPairs);
 
-#if 1
+#if 0
         in_pairs.emplace_back(A,B);
         opSplitAtCommonEdges(commonPairs, in_pairs);
 #else
@@ -2121,11 +2121,12 @@ namespace op {
         unsigned K = _frechet_k; // maximum number of iterations
         unsigned k = 1;   // keeps track of iterations
         vector<TreeManip> mu;
-        mu.reserve(K);// the trail of estimated mean trees (always has length k)
+        //mu.reserve(K);// the trail of estimated mean trees (always has length k)
         Lot lot;
         lot.setSeed(_random_number_seed);
         mu.emplace_back();
-        unsigned prev_index = chooseRandomTree(mu[k-1], lot);
+        //@ unsigned prev_index = chooseRandomTree(mu[k-1], lot);
+        chooseRandomTree(mu[k-1], lot);
         bool done = false;
         unsigned curr_index = 0;
         while (!done) {
@@ -2133,9 +2134,9 @@ namespace op {
             mu.emplace_back();
             assert(mu.size() == k);
             curr_index = chooseRandomTree(mu[k-1], lot);
-            double displacement_lambda = 1.0*k/(k+1);
 
             //@ //temporary!
+            //@ double displacement_lambda = 1.0*k/(k+1);
             //@ cerr << "--------------------" << endl;
             //@ cerr << "tree mu_" << k << "_minus_1 is " << mu[k-1].makeNewick(9,true) << endl;
             //@ cerr << "tree mu_" << k << "_minus_2 is " << mu[k-2].makeNewick(9,true) << endl;
@@ -2145,7 +2146,7 @@ namespace op {
             //@ cerr << endl;
 
             displaceTreeAlongGeodesic(mu[k-1], mu[k-2], 1.0*k/(k+1));
-            prev_index = curr_index;
+            //@ prev_index = curr_index;
             if (k >= K) {
                 done = true;
             }
