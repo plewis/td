@@ -20,10 +20,14 @@ namespace op
                                                                 ~Split() = default;
 
             bool                                                operator==(const Split & other) const;
+            bool                                                operator!=(const Split & other) const;
             bool                                                operator<(const Split & other) const;
 
             void                                                clear();
             void                                                resize(unsigned nleaves);
+
+            void                                                setBitsPerUnit(unsigned nbits_per_unit);
+            unsigned                                            getBitsPerUnit() const;
 
             typedef unsigned long                               split_unit_t;
             typedef vector<split_unit_t>                        split_t;
@@ -50,6 +54,7 @@ namespace op
             bool                                                compatibleWith(const Split & other) const;
 
             void                                                setBitAt(unsigned leaf_index);
+            void                                                setBitsAt(vector<unsigned> leaves);
             bool                                                isBitSetAt(unsigned leaf_index) const;
             void                                                addSplit(const Split & other);
 
@@ -73,23 +78,27 @@ inline Split::Split() {
     _bits_per_unit = (CHAR_BIT)*sizeof(Split::split_unit_t);
     clear();
     //cout << "Constructing a Split" << endl;
-    }
+}
 
 inline void Split::clear() {
     _edgelen = 0.0;
     for (auto & u : _bits) {
         u = 0L;
-        }
     }
+}
 
 inline bool Split::operator==(const Split & other) const {
     return (_bits == other._bits);
-    }
+}
+
+inline bool Split::operator!=(const Split & other) const {
+    return (_bits != other._bits);
+}
 
 inline bool Split::operator<(const Split & other) const {
     assert(_bits.size() == other._bits.size());
     return (_bits < other._bits);
-    }
+}
 
 inline const Split::split_t & Split::getBits() const {
     return _bits;
@@ -195,6 +204,18 @@ inline double Split::mutualClusteringInfo(const Split & other) const {
     return Icl;
 }
 
+inline void Split::setBitsPerUnit(unsigned nbits_per_unit) {
+    _bits_per_unit = nbits_per_unit;
+    _nleaves = 0;
+    unsigned nunits = 0;
+    _bits.resize(nunits);
+    clear();
+}
+
+inline unsigned Split::getBitsPerUnit() const {
+    return static_cast<unsigned>(_bits_per_unit);
+}
+
 inline void Split::resize(unsigned nleaves) {
     _nleaves = nleaves;
     unsigned nunits = 1 + ((nleaves - 1)/_bits_per_unit);
@@ -217,6 +238,13 @@ inline void Split::setBitAt(unsigned leaf_index) {
     auto bit_to_set = static_cast<split_unit_t>(1) << bit_index;
     _bits[unit_index] |= bit_to_set;
 }
+
+inline void Split::setBitsAt(vector<unsigned> leaves) {
+    for (unsigned leaf_index : leaves) {
+        setBitAt(leaf_index);
+    }
+}
+
 
 inline bool Split::isBitSetAt(unsigned leaf_index) const {
     assert(leaf_index < _nleaves);
@@ -280,17 +308,21 @@ inline void Split::invertBits() {
 inline bool Split::compatibleWith(const Split & other) const {
     // Suppose units each contain 4 bits.
     // Example of incompatible splits:
+    //       a = |0000|1111|
+    //       b = |1111|0110|
+    //      ab = |0000|0110| > 0 and equals neither a nor b --> false
+    // Example of incompatible splits:
     //       a = |0001|1000|
     //       b = |0001|0100|
+    //      ab = |0001|0000| > 0 and equals neither a nor b --> false
+    // Example of incompatible splits:
+    //       a = |0001|1100|
+    //       b = |0011|0000|
     //      ab = |0001|0000| > 0 and equals neither a nor b --> false
     // Example of compatible splits:
     //       a = |0001|1000|
     //       b = |0010|0100|
     //      ab = |0000|0000| equals 0
-    // Example of incompatible splits:
-    //       a = |0001|1100|
-    //       b = |0011|0000|
-    //      ab = |0001|0000| > 0 and equals neither a nor b --> false
     // Example of compatible splits:
     //       a = |0001|1100|
     //       b = |0001|0100|
@@ -307,13 +339,16 @@ inline bool Split::compatibleWith(const Split & other) const {
     for (unsigned i = 0; i < _bits.size(); ++i) {
         split_unit_t a  = _bits[i];
         split_unit_t b  = other_bits[i];
-        split_unit_t ab = (a & b);
-        if (ab > 0)
-            a_and_b_zero = false;
-        if (ab && ab != a)
-            ab_equals_a = false;
-        if (ab && ab != b)
-            ab_equals_b = false;
+        split_unit_t a_and_b = (a & b);
+        split_unit_t a_or_b = (a | b);
+        if (a_or_b) {
+            if (a_and_b)
+                a_and_b_zero = false;
+            if (a_and_b != a)
+                ab_equals_a = false;
+            if (a_and_b != b)
+                ab_equals_b = false;
+        }
     }
     bool is_compatible = a_and_b_zero || (ab_equals_a || ab_equals_b);
     return is_compatible;
@@ -384,6 +419,7 @@ inline bool Split::subsumedIn(const Split & other) const {
     // **-- 12 this <----------+
     // --**  3 other           | not equal
     // ----  0 this & other <--+
+
     const split_t & other_bits = other.getBits();
     assert(_bits.size() == other_bits.size());
     for (unsigned i = 0; i < _bits.size(); ++i) {

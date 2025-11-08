@@ -11,11 +11,13 @@ namespace op {
 
         void                clear();
         void                processCommandLineOptions(int argc, const char * argv[]);
+        //void                processFakeCommandLineOptions(const vector<string> & args);
         void                run();
 
     private:
 
         void readTrees();
+        void outputForGTP() const;
         void moveAlongPath();
         void calcDistanceToReference() const;
         void calcFrechetMean();
@@ -113,6 +115,7 @@ namespace op {
         string                  _prefix;
         bool                    _pairwise;
         bool                    _snapshot;
+        bool                    _gtp;
         bool                    _refdist;
         bool                    _frechet_mean;
         bool                    _save_credible_set;
@@ -151,10 +154,10 @@ namespace op {
 
     inline OP::OP() :
         _noisy(false),
-        _output_for_gtp(false),
         _prefix("outfile"),
         _pairwise(false),
         _snapshot(false),
+        _gtp(false),
         _refdist(false),
         _frechet_mean(false),
         _save_credible_set(false),
@@ -175,6 +178,25 @@ namespace op {
 
     inline OP::~OP() = default;
 
+    // inline void OP::processFakeCommandLineOptions(const vector<string> & args) {
+    //     // Create C-style argc and argv from a vector of strings
+    //     char **custom_argv = new const char *[args.size() + 1];
+    //     for (size_t i = 0; i < args.size(); ++i) {
+    //         custom_argv[i] = new char[args[i].length() + 1];
+    //         strcpy(custom_argv[i], args[i].c_str());
+    //     }
+    //     custom_argv[args.size()] = nullptr;
+    //     int custom_argc = args.size();
+//
+    //     processCommandLineOptions(custom_argc, custom_argv);
+//
+    //     // Delete memory
+    //     for (size_t i = 0; i < args.size(); ++i) {
+    //         delete[] custom_argv[i];
+    //     }
+    //     delete[] custom_argv;
+    // }
+
     inline void OP::processCommandLineOptions(int argc, const char * argv[]) {
         program_options::variables_map       vm;
         program_options::options_description desc("Allowed options");
@@ -189,6 +211,7 @@ namespace op {
             ("precision", program_options::value(&_precision)->default_value(9), "number of digits precision to use in outputting distances (default: 9)")
             ("prefix", program_options::value(&_prefix), "filename prefix for output file name (default: 'outfile')")
             ("lambda", program_options::value(&_lambda), "specify a value in [0,1] to calculate tree at that point (assumes starting tree is first tree and ending tree is the second tree in the treefile)")
+            ("saveforgtp", "saves trees in format interpretable by Owen & Provan GTP java program)")
             ("pairwise", "calculates pairwise distances (default: pairwise distances not calculated)")
             ("refdist", "calculates distance of the first tree to all other trees (default: distances not calculated)")
             ("frechetmean", "calculate Frechet mean tree and variance (default: mean and variance not calculated)")
@@ -201,9 +224,6 @@ namespace op {
             ("credset","if posterior available (i.e. treefile from RevBayes), output 95% credible set of trees and extreme trees (default: no)")
 #if defined(TESTKDE)
             ("testkde", "test kernel density estimation")
-#endif
-#if defined(DEBUGGING)
-("gtptest", program_options::value(&_output_for_gtp)->default_value(false), "output treefile that can be read by Owens-Provan GTP program")
 #endif
 ;
         program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
@@ -270,6 +290,11 @@ namespace op {
             _refdist = true;
         }
 
+        // If the user specified --saveforgtp on the command line, set _gtp to true
+        if (vm.count("saveforgtp") > 0) {
+            _gtp = true;
+        }
+
         // If the user specified --refdist on the command line, set _refdist to true
         if (vm.count("lambda") > 0) {
             _snapshot = true;
@@ -289,10 +314,11 @@ namespace op {
             buildThreadSchedule();
 
         // Sanity check
-        bool ok = ( _pairwise && !_frechet_mean && !_refdist && !_snapshot);    // only pairwise chosen
-        ok     |= (!_pairwise &&  _frechet_mean && !_refdist && !_snapshot);    // only frechet mean chosen
-        ok     |= (!_pairwise && !_frechet_mean &&  _refdist && !_snapshot);    // only refdist chosen
-        ok     |= (!_pairwise && !_frechet_mean && !_refdist &&  _snapshot);    // only snapshot chosen
+        bool ok = ( _pairwise && !_frechet_mean && !_refdist && !_snapshot && !_gtp);    // only pairwise chosen
+        ok     |= (!_pairwise &&  _frechet_mean && !_refdist && !_snapshot && !_gtp);    // only frechet mean chosen
+        ok     |= (!_pairwise && !_frechet_mean &&  _refdist && !_snapshot && !_gtp);    // only refdist chosen
+        ok     |= (!_pairwise && !_frechet_mean && !_refdist &&  _snapshot && !_gtp);    // only snapshot chosen
+        ok     |= (!_pairwise && !_frechet_mean && !_refdist && !_snapshot &&  _gtp);    // only gtp chosen
 
         if (!ok) {
             cerr << "Sorry, you can only do one of these things during a single run: " << endl;
@@ -300,11 +326,13 @@ namespace op {
             cerr << "(2) calculate distance from first tree to all other trees (refdist);" << endl;
             cerr << "(3) calculate frechet mean and variance (frechet); or" << endl;
             cerr << "(4) move along path a specified distance (lambda)" << endl;
+            cerr << "(5) save trees for use with Owen & Provan GTP software" << endl;
             cerr << "You specified: " << endl;
-            cerr << "  pairwise = " << (_pairwise ? "yes" : "no") << endl;
-            cerr << "  frechet  = " << (_frechet_mean ? "yes" : "no") << endl;
-            cerr << "  refdist  = " << (_refdist ? "yes" : "no") << endl;
-            cerr << "  lambda   = " << (_snapshot ? "yes" : "no") << endl;
+            cerr << "  pairwise   = " << (_pairwise ? "yes" : "no") << endl;
+            cerr << "  frechet    = " << (_frechet_mean ? "yes" : "no") << endl;
+            cerr << "  refdist    = " << (_refdist ? "yes" : "no") << endl;
+            cerr << "  lambda     = " << (_snapshot ? "yes" : "no") << endl;
+            cerr << "  saveforgtp = " << (_gtp ? "yes" : "no") << endl;
             throw Xop("Program aborted.");
         }
 
@@ -508,6 +536,157 @@ namespace op {
     }
 
     inline void OP::opSplitAtCommonEdges(const vector<Split::split_pair_t> & commonPairs, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
+#if 1
+        // Expecting just one pair of split sets to start
+        assert(in_pairs.size() == 1);
+
+        // No point in calling this function if there are no common edges
+        assert(commonPairs.size() > 0);
+
+        // Remove A and B from in_pairs
+        vector<Split> A(in_pairs[0].first.begin(), in_pairs[0].first.end());
+        vector<Split> B(in_pairs[0].second.begin(), in_pairs[0].second.end());
+        in_pairs.clear();
+
+        // Store common edges in a vector
+        vector<Split> common_edges;
+        for (auto & splitpair : commonPairs) {
+            common_edges.push_back(splitpair.first);
+        }
+
+        //@ // Show sorted splits in A with common splits denoted with ~~>
+        //@ // Note: splits are sorted automatically because Split::treeid_t is a set
+        //@ cerr << "\nA splits in order:" << endl;
+        //@ for (auto it = A.begin(); it != A.end(); ++it) {
+        //@     if (find(common_edges.begin(), common_edges.end(), *it) == common_edges.end()) {
+        //@         // *it is not a common edge
+        //@         cerr << "    " << it->createPatternRepresentation() << endl;
+        //@     }
+        //@     else {
+        //@         // *it is a common edge
+        //@         cerr << "~~> " << it->createPatternRepresentation() << endl;
+        //@     }
+        //@ }
+
+        //@ // Show sorted splits in B with common splits denoted with an asterisk
+        //@ // Note: splits are sorted automatically because Split::treeid_t is a set
+        //@ cerr << "\nB splits in order:" << endl;
+        //@ for (auto it = B.begin(); it != B.end(); ++it) {
+        //@     if (find(common_edges.begin(), common_edges.end(), *it) == common_edges.end()) {
+        //@         // *it is not a common edge
+        //@         cerr << "    " << it->createPatternRepresentation() << endl;
+        //@     }
+        //@     else {
+        //@         // *it is a common edge
+        //@         cerr << "~~> " << it->createPatternRepresentation() << endl;
+        //@     }
+        //@ }
+
+        // For each common split, segregate all subsumed splits in A and B into separate in_pairs elements
+        for (auto & common : common_edges) {
+            // Create mask that zeros out all set bits except first bit in common
+            // common:        ***---------
+            // mask:          *--*********
+            // split:         ***--*---*-*
+            // split & mask:  *----*---*-* all taxa in common but one removed from split
+            Split mask = common;
+            mask.invertBits();
+            mask.setBitAt(common.findFirstSetBit());
+
+            unsigned nA = static_cast<unsigned>(A.size());
+            unsigned nB = static_cast<unsigned>(B.size());
+            pair<Split::treeid_t,Split::treeid_t> in_pair;
+            stack<unsigned> erased;
+
+            // Move splits in A to in_pair.first if they are part of a common clade
+            for (unsigned i = 0; i < nA; i++) {
+                if (A[i].subsumedIn(common)) {
+                    // A[i] is subsumed in common
+                    if (A[i] != common) {
+                        in_pair.first.insert(A[i]);
+                    }
+                    erased.push(i);
+                }
+                else {
+                    // remove all taxa in common but one from split
+                    A[i].bitwiseAnd(mask);
+                }
+            }
+
+            // Erase splits in common from A (note: starting at the end
+            // so the indexing will not be changed by deletions)
+            while (!erased.empty()) {
+                unsigned i = erased.top();
+                erased.pop();
+                A.erase(A.begin() + i);
+            }
+
+            // Move splits in A to in_pair.second if they are part of a common clade
+            for (unsigned i = 0; i < nB; i++) {
+                if (B[i].subsumedIn(common)) {
+                    // B[i] is subsumed in common
+                    if (B[i] != common) {
+                        in_pair.second.insert(B[i]);
+                    }
+                    erased.push(i);
+                }
+                else {
+                    // remove all taxa in common but one from split
+                    B[i].bitwiseAnd(mask);
+                }
+            }
+
+            // Erase splits in common from B
+            while (!erased.empty()) {
+                unsigned i = erased.top();
+                erased.pop();
+                B.erase(B.begin() + i);
+            }
+
+            in_pairs.emplace_back(in_pair);
+        }
+
+        // Insert what remains of A and B into in_pairs
+        pair<Split::treeid_t,Split::treeid_t> last_pair;
+        for (auto & split : A) {
+            last_pair.first.insert(split);
+        }
+        for (auto & split : B) {
+            last_pair.second.insert(split);
+        }
+        in_pairs.emplace_back(last_pair);
+
+        //@ // Show sorted splits in A with common splits denoted with ~~>
+        //@ // Note: splits are sorted automatically because Split::treeid_t is a set
+        //@ cerr << "\nA splits after deleting common splits:" << endl;
+        //@ for (auto it = A.begin(); it != A.end(); ++it) {
+        //@     if (find(common_edges.begin(), common_edges.end(), *it) == common_edges.end()) {
+        //@         // *it is not a common edge
+        //@         cerr << "    " << it->createPatternRepresentation() << endl;
+        //@     }
+        //@     else {
+        //@         // *it is a common edge
+        //@         cerr << "~~> " << it->createPatternRepresentation() << endl;
+        //@     }
+        //@ }
+
+        //@ // Show sorted splits in B with common splits denoted with an asterisk
+        //@ // Note: splits are sorted automatically because Split::treeid_t is a set
+        //@ cerr << "\nB splits after deleting common splits:" << endl;
+        //@ for (auto it = B.begin(); it != B.end(); ++it) {
+        //@     if (find(common_edges.begin(), common_edges.end(), *it) == common_edges.end()) {
+        //@         // *it is not a common edge
+        //@         cerr << "    " << it->createPatternRepresentation() << endl;
+        //@     }
+        //@     else {
+        //@         // *it is a common edge
+        //@         cerr << "~~> " << it->createPatternRepresentation() << endl;
+        //@     }
+        //@ }
+
+        //@ cerr << endl;
+
+#else
         vector<pair<Split::treeid_t,Split::treeid_t> > out_pairs;
 
         for (auto & common_pair : commonPairs) {
@@ -603,6 +782,7 @@ namespace op {
             in_pairs.swap(out_pairs);
             out_pairs.clear();
         }
+#endif
     }
 
 #if defined(OP_SAVE_DOT_FILE)
@@ -1583,6 +1763,17 @@ namespace op {
             vector<pair<Split::treeid_t, Split::treeid_t> > & in_pairs,
             vector<Split::treeid_pair_t> & ABpairs,
             vector<Split::split_pair_t> & commonPairs) const {
+        if (_noisy) {
+            cout << "\nKey to taxa:" << endl;
+            for (unsigned i = 0; i < TreeManip::_taxon_names.size(); i++) {
+                cout << str(format("%12d %s") % (i+1) % TreeManip::_taxon_names[i]) << endl;
+            }
+            cout << "\nStarting tree description:" << endl;
+            cout << "  " << starttm.makeNewick(9,false) << endl;
+            cout << "\nEnding tree description:" << endl;
+            cout << "  " << endtm.makeNewick(9,false) << endl;
+        }
+
         ABpairs.clear();
 
         // Store splits from the starting tree
@@ -1636,7 +1827,7 @@ namespace op {
         // Find common edges and calculate the contribution of common edge lengths to the geodesic
         double common_edge_contribution_squared = opFindCommonEdges(A, B, commonPairs);
 
-#if 0
+#if 1
         in_pairs.emplace_back(A,B);
         opSplitAtCommonEdges(commonPairs, in_pairs);
 #else
@@ -2663,12 +2854,6 @@ namespace op {
 
         if (_noisy) {
             cout << "\nRead " << ntrees << " trees from " << _tree_file_names.size() << " tree files." << endl;
-            cout << "\nTaxon names:" << endl;
-            unsigned i = 1;
-            for (auto & nm : TreeManip::_taxon_names) {
-                cout << str(format("%12d %s\n") % i % nm);
-                i++;
-            }
         }
     }
 
@@ -2702,26 +2887,30 @@ namespace op {
         }
     }
 
-#if defined(DEBUGGING)
-    inline void OP::outputForGTP() {
-        if (_output_for_gtp) {
-            if (!_quiet)
-                cout << "Writing trees in newick format to file \"trees-for-gtp.txt\"" << endl;
-
-            ofstream gtpf("trees-for-gtp.txt");
-            for (unsigned i = 0; i < ntrees; ++i) {
-                gtpf << _tree_summary->getNewick(i) << ";\n";
-            }
-            gtpf.close();
-
-            // If output for gtp was requested, then that is all
-            // we try to do on this run
-            if (!_quiet)
-                cout << "Done." << endl;
-            return;
+    inline void OP::outputForGTP() const {
+        string fn1 = _prefix + "-gtp.txt";
+        string fn2 = _prefix + "-gtp-taxon-mapping.txt";
+        if (_noisy) {
+            cout << "Writing trees in newick format to file \"" << fn1 << "\"\n";
+            cout << "Writing mapping of taxon numbers to names to file \"" << fn2 << "\"" << endl;
         }
+
+        ofstream gtpf(fn1);
+        for (unsigned i = 0; i < _tree_summary->getNumTrees(); ++i) {
+            TreeManip tm;
+            bool isrooted = _tree_summary->isRooted(i);
+            tm.buildFromNewick(_tree_summary->getNewick(i), isrooted, true);
+            gtpf << tm.makeNewick(9, false) << ";\n";
+        }
+        gtpf.close();
+
+        // Save the mapping of taxon numbers used in trees to taxon names
+        ofstream taxmapf(fn2);
+        for (unsigned i = 0; i < TreeManip::_taxon_names.size(); ++i) {
+            taxmapf << str(format("%12d %s\n") % (i+1) % TreeManip::_taxon_names[i]);
+        }
+        taxmapf.close();
     }
-#endif
 
 #if defined(OLD_KF_CODE)
     if (!_quiet)
@@ -2739,6 +2928,11 @@ namespace op {
     inline void OP::run() {
         try {
             readTrees();
+
+            if (_gtp) {
+                outputForGTP();
+                return;
+            }
 
             if (_snapshot) {
                 moveAlongPath();
