@@ -536,7 +536,6 @@ namespace op {
     }
 
     inline void OP::opSplitAtCommonEdges(const vector<Split::split_pair_t> & commonPairs, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
-#if 1
         // Expecting just one pair of split sets (treeIDs) to start
         assert(in_pairs.size() == 1);
 
@@ -555,45 +554,8 @@ namespace op {
             common_edges.push_back(splitpair.first);
         }
 
-        //@ // Show sorted splits in A with common splits denoted with ~~>
-        //@ // Note: splits are sorted automatically because Split::treeid_t is a set
-        //@ cerr << "\nA splits in order:" << endl;
-        //@ for (auto it = A.begin(); it != A.end(); ++it) {
-        //@     if (find(common_edges.begin(), common_edges.end(), *it) == common_edges.end()) {
-        //@         // *it is not a common edge
-        //@         cerr << "    " << it->createPatternRepresentation() << endl;
-        //@     }
-        //@     else {
-        //@         // *it is a common edge
-        //@         cerr << "~~> " << it->createPatternRepresentation() << endl;
-        //@     }
-        //@ }
-
-        //@ // Show sorted splits in B with common splits denoted with an asterisk
-        //@ // Note: splits are sorted automatically because Split::treeid_t is a set
-        //@ cerr << "\nB splits in order:" << endl;
-        //@ for (auto it = B.begin(); it != B.end(); ++it) {
-        //@     if (find(common_edges.begin(), common_edges.end(), *it) == common_edges.end()) {
-        //@         // *it is not a common edge
-        //@         cerr << "    " << it->createPatternRepresentation() << endl;
-        //@     }
-        //@     else {
-        //@         // *it is a common edge
-        //@         cerr << "~~> " << it->createPatternRepresentation() << endl;
-        //@     }
-        //@ }
-
         // For each common split, segregate all subsumed splits in A and B into separate in_pairs elements
         for (auto & common : common_edges) {
-            // // Create mask that zeros out all set bits except first bit in common
-            // // common:        ***---------
-            // // mask:          *--*********
-            // // split:         ***--*---*-*
-            // // split & mask:  *----*---*-* all taxa in common but one removed from split
-            // Split mask = common;
-            // mask.invertBits();
-            // mask.setBitAt(common.findFirstSetBit());
-
             unsigned nA = static_cast<unsigned>(A.size());
             unsigned nB = static_cast<unsigned>(B.size());
             pair<Split::treeid_t,Split::treeid_t> in_pair;
@@ -608,10 +570,6 @@ namespace op {
                     }
                     erased.push(i);
                 }
-                // else {
-                //     // remove all taxa in common but one from split
-                //     A[i].bitwiseAnd(mask);
-                // }
             }
 
             // Erase splits in common from A (note: starting at the end
@@ -631,10 +589,6 @@ namespace op {
                     }
                     erased.push(i);
                 }
-                // else {
-                //     // remove all taxa in common but one from split
-                //     B[i].bitwiseAnd(mask);
-                // }
             }
 
             // Erase splits in common from B
@@ -647,17 +601,6 @@ namespace op {
             // Only save pair if at least one split is in each set
             if (in_pair.first.size() > 0 && in_pair.second.size() > 0)
                 in_pairs.emplace_back(in_pair);
-
-            // //temporary!
-            // cerr << "\nA splits: ";
-            // for (auto & split : A) {
-            //     cerr << split.getBits()[0] << "  ";
-            // }
-            // cerr << "\nB splits: ";
-            // for (auto & split : B) {
-            //     cerr << split.getBits()[0] << "  ";
-            // }
-            // cerr << "\ndebug breakpoint" << endl;
         }
 
         // Insert what remains of A and B into in_pairs if more than one split is in each set
@@ -670,146 +613,6 @@ namespace op {
         }
         if (last_pair.first.size() > 0 && last_pair.second.size() > 0)
             in_pairs.emplace_back(last_pair);
-
-        //@ // Show sorted splits in A with common splits denoted with ~~>
-        //@ // Note: splits are sorted automatically because Split::treeid_t is a set
-        //@ cerr << "\nA splits after deleting common splits:" << endl;
-        //@ for (auto it = A.begin(); it != A.end(); ++it) {
-        //@     if (find(common_edges.begin(), common_edges.end(), *it) == common_edges.end()) {
-        //@         // *it is not a common edge
-        //@         cerr << "    " << it->createPatternRepresentation() << endl;
-        //@     }
-        //@     else {
-        //@         // *it is a common edge
-        //@         cerr << "~~> " << it->createPatternRepresentation() << endl;
-        //@     }
-        //@ }
-
-        //@ // Show sorted splits in B with common splits denoted with an asterisk
-        //@ // Note: splits are sorted automatically because Split::treeid_t is a set
-        //@ cerr << "\nB splits after deleting common splits:" << endl;
-        //@ for (auto it = B.begin(); it != B.end(); ++it) {
-        //@     if (find(common_edges.begin(), common_edges.end(), *it) == common_edges.end()) {
-        //@         // *it is not a common edge
-        //@         cerr << "    " << it->createPatternRepresentation() << endl;
-        //@     }
-        //@     else {
-        //@         // *it is a common edge
-        //@         cerr << "~~> " << it->createPatternRepresentation() << endl;
-        //@     }
-        //@ }
-
-        // //temporary!
-        // for (auto & inpair : in_pairs) {
-        //     cerr << "\n***** new tree pair *****" << endl;
-        //     cerr << "A splits:\n";
-        //     for (auto & split : inpair.first) {
-        //         cerr << split.createPatternRepresentation() << endl;
-        //     }
-        //     cerr << "\nB splits:\n";
-        //     for (auto & split : inpair.second) {
-        //         cerr << split.createPatternRepresentation() << endl;
-        //     }
-        // }
-        // cerr << "\ndebug breakpoint" << endl;
-
-#else
-        vector<pair<Split::treeid_t,Split::treeid_t> > out_pairs;
-
-        for (auto & common_pair : commonPairs) {
-            // We just need the first member of the pair because the second member
-            // is the same split only with a potentially different edge length
-            const Split & common = common_pair.first;
-
-            // //temporary!
-            // cout << "\ncommon: " << common.createPatternRepresentation() << endl;
-
-            // Create a mask that can be used to zero out all bits in common except the first
-            //Split mask = common;
-            //mask.invertBits();
-            //unsigned first_common_bit = common.findFirstSetBit();
-            //mask.setBitAt(first_common_bit);
-
-            // //temporary!
-            // cout << "  mask: " << mask.createPatternRepresentation() << endl;
-
-            for (auto & inpair : in_pairs) {
-                // //temporary!
-                // cout << "\n***** new tree pair *****" << endl;
-                // Separate out splits in starting (a_splits) vs. ending (b_splits) (sub)trees
-                Split::treeid_t & a_splits = inpair.first;
-                Split::treeid_t & b_splits = inpair.second;
-
-                // Create split sets to hold splits subsumed in common vs. other splits
-                Split::treeid_t a_common_splits, b_common_splits;
-                Split::treeid_t a_other_splits, b_other_splits;
-
-                // Divvy up a_splits to a_common_splits and a_other_splits
-                for (auto & asplit : a_splits) {
-                    bool is_common = (asplit == common);
-                    if (!is_common) {
-                        if (asplit.subsumedIn(common)) {
-                            a_common_splits.insert(asplit);
-                        }
-                        else {
-                            //Split masked = asplit;
-                            //masked.bitwiseAnd(mask);
-                            //a_other_splits.insert(masked);
-                            a_other_splits.insert(asplit);
-                        }
-                    }
-                }
-
-                // Divvy up b_splits to b_common_splits and b_other_splits
-                // cout << "  Divvying up b_splits:" << endl;
-                for (auto & bsplit : b_splits) {
-                    // cout << "  bsplit: " << bsplit.createPatternRepresentation();
-                    bool is_common = (bsplit == common);
-                    if (!is_common) {
-                        if (bsplit.subsumedIn(common)) {
-                            b_common_splits.insert(bsplit);
-                        }
-                        else {
-                            //Split masked = bsplit;
-                            //masked.bitwiseAnd(mask);
-                            //b_other_splits.insert(masked);
-                            b_other_splits.insert(bsplit);
-                        }
-                    }
-                }
-
-                // Create two new tree pairs (a_common_splits, b_common_splits) and (a_other_splits, b_other_splits)
-                //TODO: no need to emplace empty sets
-                out_pairs.emplace_back(a_common_splits, b_common_splits);
-                out_pairs.emplace_back(a_other_splits, b_other_splits);
-
-                if (_noisy) {
-                    cout << "\nSplitting trees at common split: " << common.createPatternRepresentation() << endl;
-                    cout << "  Left subtree above common split:" << endl;
-                    for (auto & asplit : a_common_splits) {
-                        cout << "    " << asplit.createPatternRepresentation() << endl;
-                    }
-                    cout << "  Right subtree above common split:" << endl;
-                    for (auto & bsplit : b_common_splits) {
-                        cout << "    " << bsplit.createPatternRepresentation() << endl;
-                    }
-                    cout << "  Left subtree below common split:" << endl;
-                    for (auto & asplit : a_other_splits) {
-                        cout << "    " << asplit.createPatternRepresentation() << endl;
-                    }
-                    cout << "  Right subtree below common split:" << endl;
-                    for (auto & bsplit : b_other_splits) {
-                        cout << "    " << bsplit.createPatternRepresentation() << endl;
-                    }
-                    cout << endl;
-                }
-            }
-
-            // Swap in_pairs and out_pairs
-            in_pairs.swap(out_pairs);
-            out_pairs.clear();
-        }
-#endif
     }
 
 #if defined(OP_SAVE_DOT_FILE)
