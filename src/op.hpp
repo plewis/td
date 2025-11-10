@@ -442,33 +442,11 @@ namespace op {
             cout << "\nCommon edge contribution (squared): " << setprecision(9) << common_edge_contribution_squared << endl;
         }
 
-        //@ //temporary!
-        //@ Split test;
-        //@ test.resize(static_cast<unsigned>(TreeManip::_taxon_names.size()));
-        //@ test.setBitAt(63);
-        //@ test.setBitAt(64);
-
         // Count the number of splits in B compatible with each split in A (and vice versa)
         map<const Split *, unsigned> acompatibilities;
         map<const Split *, unsigned> bcompatibilities;
         for (auto & a : A) {
-
-            //@ //temporary!
-            //@ if (a == test) {
-            //@     cerr << "Found split 64-65" << endl;
-            //@     cerr << a.createPatternRepresentation(false) << endl;
-            //@     cerr << endl;
-            //@ }
-
             for (auto & b : B) {
-
-                //@ //temporary!
-                //@ if (b.isBitSetAt(63) || b.isBitSetAt(64)) {
-                //@     cerr << "Found split with 64 or 65" << endl;
-                //@     cerr << b.createPatternRepresentation(false) << endl;
-                //@     cerr << endl;
-                //@ }
-
                 if (a.compatibleWith(b)) {
                     acompatibilities[&a]++;
                     bcompatibilities[&b]++;
@@ -1232,17 +1210,6 @@ namespace op {
         vector<OPVertex> avect(AB.first.size());
         vector<OPVertex> bvect(AB.second.size());
 
-        //@ //temporary!
-        //@ bool show_split_representations = false;
-        //@ if (OP::_graph_number == 15) {
-        //@     cerr << "***** Entering OP::opRefineSupport()..." << endl;
-        //@     cerr << "  graph number is " << OP::_graph_number << endl;
-        //@     show_split_representations = true;
-        //@ }
-
-        //                                      23  123  456  123456
-        //vector<unsigned> a_splits_in_order = { 6,   7,  56,     63};
-
         // Calculate weights for the "A" vertices.
         // For example, if A = {a1,a2,a3}, then the weight of a1 is
         // weight a1 = a1^2 / (a1^2 + a2^2 + a3^2)
@@ -1254,12 +1221,6 @@ namespace op {
         for (auto & a : AB.first) {
             avect[aindex]._split = &a;
             avect[aindex]._weight = pow(a.getEdgeLen(),2)/asum;
-
-            //@ //temporary!
-            //@ if (show_split_representations) {
-            //@     cerr << "a[" << aindex << "] = " << a.createPatternRepresentation() << "   weight = " << avect[aindex]._weight << endl;
-            //@ }
-
             aindex++;
         }
 
@@ -1274,12 +1235,6 @@ namespace op {
         for (auto & b : AB.second) {
             bvect[bindex]._split = &b;
             bvect[bindex]._weight = pow(b.getEdgeLen(),2)/bsum;
-
-            //@ //temporary!
-            //@ if (show_split_representations) {
-            //@     cerr << "b[" << bindex << "] = " << b.createPatternRepresentation() << "   weight = " << bvect[bindex]._weight << endl;
-            //@ }
-
             bindex++;
         }
 
@@ -1311,13 +1266,6 @@ namespace op {
             source._edges.push_back(&source_forward_edge);
         }
 
-        //@ //temporary!
-        //@ if (show_split_representations) {
-        //@     if (avect.size() == 4 && bvect.size() == 4) {
-        //@         cerr << endl;
-        //@     }
-        //@ }
-
         // Create edges from A-vertices to B-vertices
         for (unsigned i = 0; i < asize; i++) {
             // Get split associated with avect[i]
@@ -1328,19 +1276,7 @@ namespace op {
                 const Split * b = bvect[j]._split;
                 assert(b);
 
-                //@ //temporary!
-                //@ if (show_split_representations) {
-                //@     cerr << "a = " << a->createPatternRepresentation() << endl;
-                //@     cerr << "b = " << b->createPatternRepresentation() << endl;
-                //@ }
-
                 if (!a->compatibleWith(*b)) {
-                    //@ //temporary!
-                    //@ if (show_split_representations) {
-                    //@     cerr << "--> INCOMPATIBLE" << endl;
-                    //@     cerr << endl;
-                    //@ }
-
                     nincompatibilities++;
 
                     // Create a forward edge in the incompatibility graph
@@ -1354,13 +1290,6 @@ namespace op {
                     forward_edge._open = true;
                     avect[i]._edges.emplace_back(&forward_edge);
                 }
-                //@ else {
-                //@     //temporary!
-                //@     if (show_split_representations) {
-                //@         cerr << "--> compatible" << endl;
-                //@         cerr << endl;
-                //@     }
-                //@ }
             }
         }
 
@@ -1532,17 +1461,6 @@ namespace op {
                 support.clear();
             }
         }
-
-        //@ //temporary!
-        //@ size_t nA = 0;
-        //@ size_t nB = 0;
-        //@ for (const auto & ab : ABpairs) {
-        //@     nA += ab.first.size();
-        //@     nB += ab.second.size();
-        //@ }
-        //@ if (nA != nB) {
-        //@     cerr << endl;
-        //@ }
 
         // Calculate geodesic distance
         unsigned ratio_index = 1;
@@ -1968,33 +1886,15 @@ namespace op {
                 break;
             }
 
-            //@ //temporary!
-            //@ start_tree.debugCheckForSinNombreLeaves("before adding/dropping splits");
-            //@ unsigned ndropped = static_cast<unsigned>(ABpairs[leg].first.size());
-            //@ unsigned nadded = static_cast<unsigned>(ABpairs[leg].second.size());
-            //@ if (ndropped == 8 && nadded == 9) {
-            //@     cerr << endl;
-            //@ }
-
             for (auto & asplit : ABpairs[leg].first) {
                 // Drop asplit from the start_tree
                 start_tree.dropSplit(asplit);
             }
 
-            //@ //temporary!
-            //@ string msg1 = str(format("after dropping %d splits") % ndropped);
-            //@ start_tree.debugCheckForSinNombreLeaves(msg1);
-            //@ cerr << start_tree.debugCountUnusedNodes() << " nodes unused after dropping " << ndropped << " splits" << endl;
-
             for (auto & bsplit : ABpairs[leg].second) {
                 // Add bsplit to the start_tree
                 start_tree.addSplit(bsplit);
             }
-
-            //@ //temporary!
-            //@ string msg2 = str(format("after adding %d splits") % nadded);
-            //@ start_tree.debugCheckForSinNombreLeaves(msg2);
-            //@ cerr << start_tree.debugCountUnusedNodes() << " nodes unused after adding " << nadded << " splits" << endl;
 
             ++leg;
         }
@@ -2124,6 +2024,7 @@ namespace op {
             // increasing the chances of breaking the loop early if possible
             for (unsigned i = lower; i < upper - 1; ++i) {
                 for (unsigned j = upper - 1; j > i; --j) {
+                    in_pairs.clear();
                     double bhvdist = calcBHVDistance(mu[i-1], mu[j-1], in_pairs, ABpairs, commonPairs);
                     if (bhvdist > epsilon) {
                         is_close_enough = false;
@@ -2151,22 +2052,14 @@ namespace op {
         //@ unsigned prev_index = chooseRandomTree(mu[k-1], lot);
         chooseRandomTree(mu[k-1], lot);
         bool done = false;
-        unsigned curr_index = 0;
+        //@ unsigned curr_index = 0;
         while (!done) {
             ++k;
             mu.emplace_back();
             assert(mu.size() == k);
-            curr_index = chooseRandomTree(mu[k-1], lot);
 
-            //@ //temporary!
-            //@ double displacement_lambda = 1.0*k/(k+1);
-            //@ cerr << "--------------------" << endl;
-            //@ cerr << "tree mu_" << k << "_minus_1 is " << mu[k-1].makeNewick(9,true) << endl;
-            //@ cerr << "tree mu_" << k << "_minus_2 is " << mu[k-2].makeNewick(9,true) << endl;
-            //@ cerr << "index of mu[" << k << "-2] is " << prev_index << endl;
-            //@ cerr << "index of mu[" << k << "-1] is " << curr_index << endl;
-            //@ cerr << "displacement_lambda is " << setprecision(9) << displacement_lambda << endl;
-            //@ cerr << endl;
+            //@ curr_index = chooseRandomTree(mu[k-1], lot);
+            chooseRandomTree(mu[k-1], lot);
 
             displaceTreeAlongGeodesic(mu[k-1], mu[k-2], 1.0*k/(k+1));
             //@ prev_index = curr_index;
@@ -2175,9 +2068,6 @@ namespace op {
             }
             if (k > N) {
                 done = frechetCloseEnough(mu, k-N, k, epsilon);
-                // //temporary!
-                // cerr << "frechetCloseEnough from " << (k-N) << " to " << k << " is " << (done ? "true" : "false");
-                // cerr << endl;
             }
         }
         mean_tree.setTree(mu[k-1].getTree());
