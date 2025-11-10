@@ -537,7 +537,7 @@ namespace op {
 
     inline void OP::opSplitAtCommonEdges(const vector<Split::split_pair_t> & commonPairs, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
 #if 1
-        // Expecting just one pair of split sets to start
+        // Expecting just one pair of split sets (treeIDs) to start
         assert(in_pairs.size() == 1);
 
         // No point in calling this function if there are no common edges
@@ -549,6 +549,7 @@ namespace op {
         in_pairs.clear();
 
         // Store common edges in a vector
+        //TODO: should this be done from the start? That is, why have a vector of pairs when first == second?
         vector<Split> common_edges;
         for (auto & splitpair : commonPairs) {
             common_edges.push_back(splitpair.first);
@@ -584,21 +585,21 @@ namespace op {
 
         // For each common split, segregate all subsumed splits in A and B into separate in_pairs elements
         for (auto & common : common_edges) {
-            // Create mask that zeros out all set bits except first bit in common
-            // common:        ***---------
-            // mask:          *--*********
-            // split:         ***--*---*-*
-            // split & mask:  *----*---*-* all taxa in common but one removed from split
-            Split mask = common;
-            mask.invertBits();
-            mask.setBitAt(common.findFirstSetBit());
+            // // Create mask that zeros out all set bits except first bit in common
+            // // common:        ***---------
+            // // mask:          *--*********
+            // // split:         ***--*---*-*
+            // // split & mask:  *----*---*-* all taxa in common but one removed from split
+            // Split mask = common;
+            // mask.invertBits();
+            // mask.setBitAt(common.findFirstSetBit());
 
             unsigned nA = static_cast<unsigned>(A.size());
             unsigned nB = static_cast<unsigned>(B.size());
             pair<Split::treeid_t,Split::treeid_t> in_pair;
             stack<unsigned> erased;
 
-            // Move splits in A to in_pair.first if they are part of a common clade
+            // Move splits in A to in_pair.first if they are subsumed in common
             for (unsigned i = 0; i < nA; i++) {
                 if (A[i].subsumedIn(common)) {
                     // A[i] is subsumed in common
@@ -607,10 +608,10 @@ namespace op {
                     }
                     erased.push(i);
                 }
-                else {
-                    // remove all taxa in common but one from split
-                    A[i].bitwiseAnd(mask);
-                }
+                // else {
+                //     // remove all taxa in common but one from split
+                //     A[i].bitwiseAnd(mask);
+                // }
             }
 
             // Erase splits in common from A (note: starting at the end
@@ -621,7 +622,7 @@ namespace op {
                 A.erase(A.begin() + i);
             }
 
-            // Move splits in A to in_pair.second if they are part of a common clade
+            // Move splits in B to in_pair.second if they are subsumed in common
             for (unsigned i = 0; i < nB; i++) {
                 if (B[i].subsumedIn(common)) {
                     // B[i] is subsumed in common
@@ -630,10 +631,10 @@ namespace op {
                     }
                     erased.push(i);
                 }
-                else {
-                    // remove all taxa in common but one from split
-                    B[i].bitwiseAnd(mask);
-                }
+                // else {
+                //     // remove all taxa in common but one from split
+                //     B[i].bitwiseAnd(mask);
+                // }
             }
 
             // Erase splits in common from B
@@ -643,10 +644,23 @@ namespace op {
                 B.erase(B.begin() + i);
             }
 
-            in_pairs.emplace_back(in_pair);
+            // Only save pair if at least one split is in each set
+            if (in_pair.first.size() > 0 && in_pair.second.size() > 0)
+                in_pairs.emplace_back(in_pair);
+
+            // //temporary!
+            // cerr << "\nA splits: ";
+            // for (auto & split : A) {
+            //     cerr << split.getBits()[0] << "  ";
+            // }
+            // cerr << "\nB splits: ";
+            // for (auto & split : B) {
+            //     cerr << split.getBits()[0] << "  ";
+            // }
+            // cerr << "\ndebug breakpoint" << endl;
         }
 
-        // Insert what remains of A and B into in_pairs
+        // Insert what remains of A and B into in_pairs if more than one split is in each set
         pair<Split::treeid_t,Split::treeid_t> last_pair;
         for (auto & split : A) {
             last_pair.first.insert(split);
@@ -654,7 +668,8 @@ namespace op {
         for (auto & split : B) {
             last_pair.second.insert(split);
         }
-        in_pairs.emplace_back(last_pair);
+        if (last_pair.first.size() > 0 && last_pair.second.size() > 0)
+            in_pairs.emplace_back(last_pair);
 
         //@ // Show sorted splits in A with common splits denoted with ~~>
         //@ // Note: splits are sorted automatically because Split::treeid_t is a set
@@ -684,7 +699,19 @@ namespace op {
         //@     }
         //@ }
 
-        //@ cerr << endl;
+        // //temporary!
+        // for (auto & inpair : in_pairs) {
+        //     cerr << "\n***** new tree pair *****" << endl;
+        //     cerr << "A splits:\n";
+        //     for (auto & split : inpair.first) {
+        //         cerr << split.createPatternRepresentation() << endl;
+        //     }
+        //     cerr << "\nB splits:\n";
+        //     for (auto & split : inpair.second) {
+        //         cerr << split.createPatternRepresentation() << endl;
+        //     }
+        // }
+        // cerr << "\ndebug breakpoint" << endl;
 
 #else
         vector<pair<Split::treeid_t,Split::treeid_t> > out_pairs;
