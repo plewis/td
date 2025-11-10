@@ -536,11 +536,13 @@ namespace op {
     }
 
     inline void OP::opSplitAtCommonEdges(const vector<Split::split_pair_t> & commonPairs, vector<pair<Split::treeid_t,Split::treeid_t> > & in_pairs) const {
+        // Bail out now if there are no common edges
+        if (commonPairs.size() == 0) {
+            return;
+        }
+
         // Expecting just one pair of split sets (treeIDs) to start
         assert(in_pairs.size() == 1);
-
-        // No point in calling this function if there are no common edges
-        assert(commonPairs.size() > 0);
 
         // Remove A and B from in_pairs
         vector<Split> A(in_pairs[0].first.begin(), in_pairs[0].first.end());
