@@ -22,6 +22,7 @@ namespace op {
         void calcDistanceToReference() const;
         void calcFrechetMean();
         void calcPairwise() const;
+        void outputVersionAndSettings() const;
         unsigned buildThreadSchedule();
 
 #if defined(TESTKDE)
@@ -134,6 +135,8 @@ namespace op {
         static unsigned         _major_version;
         static unsigned         _minor_version;
 
+        static bool             _silent;    // set to true for unit tests only
+
 #if defined(OP_SAVE_DOT_FILE)
         static unsigned            _graph_number;
 #endif
@@ -186,6 +189,63 @@ namespace op {
     //     }
     //     delete[] custom_argv;
     // }
+
+    inline void OP::outputVersionAndSettings() const {
+        if (_silent)
+            return;
+
+        cout << str(format("%s version %d.%d") % OP::_program_name % OP::_major_version % OP::_minor_version) << endl;
+        string fn = _prefix + "-op.conf";
+        cout << "Settings saved in file \"" << fn << "\"" << endl;
+        cout << "Rename \"" << fn << " to \"op.conf\" to recreate this analysis." << endl;
+        ofstream outf(fn);
+        outf << str(format("prefix = %s\n") % _prefix);
+        outf << str(format("noisy = %s\n") % (_noisy ? "yes" : "no"));
+        outf << str(format("seed = %d\n") % _random_number_seed);
+        if (_pairwise) {
+            outf << "pairwise = yes\n";
+            outf << "refdist = no\n";
+            outf << "frechetmean = no\n";
+            outf << "saveforgtp = no\n";
+        }
+        else if (_refdist) {
+            outf << "refdist = yes\n";
+            outf << "pairwise = no\n";
+            outf << "frechetmean = no\n";
+            outf << "saveforgtp = no\n";
+        }
+        else if (_gtp) {
+            outf << "saveforgtp = yes\n";
+            outf << "refdist = no\n";
+            outf << "pairwise = no\n";
+            outf << "frechetmean = no\n";
+        }
+        else if (_frechet_mean) {
+            outf << "frechetmean = yes\n";
+            outf << str(format("frechet-e = %.9f\n") % _frechet_epsilon);
+            outf << str(format("frechet-k = %d\n") % _frechet_k);
+            outf << str(format("frechet-n = %d\n") % _frechet_n);
+            outf << "saveforgtp = no\n";
+            outf << "refdist = no\n";
+            outf << "pairwise = no\n";
+        }
+        else {
+            assert(_snapshot);
+            outf << str(format("lambda = %.9f\n") % _lambda);
+            outf << "frechetmean = no\n";
+            outf << "saveforgtp = no\n";
+            outf << "refdist = no\n";
+            outf << "pairwise = no\n";
+        }
+        for (unsigned i = 0; i < _tree_file_names.size(); ++i) {
+            outf << "treefile = " << _tree_file_names[i] << endl;
+            outf << "skip = " << _skip[i] << endl;
+            outf << "stride = " << _stride[i] << endl;
+            outf << "rooted = " << (_rooted[i] ? "yes" : "no") << endl;
+            outf << str(format("scale = %.9f\n") % _scale_by[i]);
+        }
+        outf.close();
+    }
 
     inline void OP::processCommandLineOptions(int argc, const char * argv[]) {
         program_options::variables_map       vm;
@@ -318,11 +378,11 @@ namespace op {
             cerr << "(4) move along path a specified distance (lambda)" << endl;
             cerr << "(5) save trees for use with Owen & Provan GTP software" << endl;
             cerr << "You specified: " << endl;
-            cerr << "  pairwise   = " << (_pairwise ? "yes" : "no") << endl;
-            cerr << "  frechet    = " << (_frechet_mean ? "yes" : "no") << endl;
-            cerr << "  refdist    = " << (_refdist ? "yes" : "no") << endl;
-            cerr << "  lambda     = " << (_snapshot ? "yes" : "no") << endl;
-            cerr << "  saveforgtp = " << (_gtp ? "yes" : "no") << endl;
+            cerr << "  pairwise    = " << (_pairwise ? "yes" : "no") << endl;
+            cerr << "  frechetmean = " << (_frechet_mean ? "yes" : "no") << endl;
+            cerr << "  refdist     = " << (_refdist ? "yes" : "no") << endl;
+            cerr << "  lambda      = " << (_snapshot ? "yes" : "no") << endl;
+            cerr << "  saveforgtp  = " << (_gtp ? "yes" : "no") << endl;
             throw Xop("Program aborted.");
         }
 
@@ -2425,6 +2485,7 @@ namespace op {
 
     inline void OP::run() {
         try {
+            outputVersionAndSettings();
             readTrees();
 
             if (_gtp) {

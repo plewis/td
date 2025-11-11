@@ -51,9 +51,13 @@ using namespace op;
 // static data member initializations
 mutex OP::_mutex;
 string  OP::_program_name        = "op";
+
+// If these are changed, also change in OPDistTest.cpp
 unsigned     OP::_major_version       = 1;
 //unsigned     OP::_minor_version       = 4; // fixes major bug related to nested common edges
 unsigned     OP::_minor_version       = 5; // fixes bug resulting from polytomies in one of the two trees being compared
+
+bool         OP::_silent              = false; // set to true only for unit tests
 const double Node::_smallest_edge_length = 1.0e-12;
 vector<string> TreeManip::_taxon_names;
 map<string, unsigned> TreeManip::_taxon_map;
