@@ -421,6 +421,10 @@ inline bool Split::subsumedIn(const Split & other) const {
     // ----  0 this & other <--+
 
     const split_t & other_bits = other.getBits();
+    //temporary!
+    if (_bits.size() != other_bits.size()) {
+        cerr << "oops" << endl;
+    }
     assert(_bits.size() == other_bits.size());
     for (unsigned i = 0; i < _bits.size(); ++i) {
         if ((_bits[i] & other_bits[i]) != _bits[i])

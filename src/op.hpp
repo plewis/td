@@ -162,6 +162,8 @@ namespace op {
         _kde_sigma(0.0),
         _kde_q25(0.0),
         _kde_q75(0.0) {
+        TreeManip::_taxon_names.clear();
+        TreeManip::_taxon_map.clear();
     }
 
     inline OP::~OP() = default;
@@ -519,7 +521,13 @@ namespace op {
         //TODO: should this be done from the start? That is, why have a vector of pairs when first == second?
         vector<Split> common_edges;
         for (auto & splitpair : commonPairs) {
-            common_edges.push_back(splitpair.first);
+            if (splitpair.first.getSize() > 0)
+                common_edges.push_back(splitpair.first);
+            else if (splitpair.second.getSize() > 0)
+                common_edges.push_back(splitpair.second);
+            else {
+                throw Xop("Internal error: neither member of splitpair has size > 0");
+            }
         }
 
         // For each common split, segregate all subsumed splits in A and B into separate in_pairs elements

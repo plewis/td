@@ -179,6 +179,7 @@ namespace op {
                     }
                 }
                 if (!ok) {
+                    cerr << boost::str(format("File name: \"%s\"") % filename) << endl;
                     cerr << boost::str(format("%12s %12s %12s") % "taxon" % "prev" % "new") << endl;
                     for (unsigned j = 0; j < taxaBlock->GetNumTaxonLabels(); ++j) {
                         cerr << boost::str(format("%12d %12s %12s") % (j+1) % old_names[j] % new_names[j]) << endl;

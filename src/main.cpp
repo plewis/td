@@ -52,7 +52,8 @@ using namespace op;
 mutex OP::_mutex;
 string  OP::_program_name        = "op";
 unsigned     OP::_major_version       = 1;
-unsigned     OP::_minor_version       = 4; // fixes major bug related to nested common edges
+//unsigned     OP::_minor_version       = 4; // fixes major bug related to nested common edges
+unsigned     OP::_minor_version       = 5; // fixes bug resulting from polytomies in one of the two trees being compared
 const double Node::_smallest_edge_length = 1.0e-12;
 vector<string> TreeManip::_taxon_names;
 map<string, unsigned> TreeManip::_taxon_map;
