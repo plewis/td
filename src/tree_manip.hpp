@@ -44,6 +44,8 @@ namespace op {
         void                        debugCheckForSinNombreLeaves(const string & msg) const;
         unsigned                    debugCountUnusedNodes() const;
 
+        static string               nexusTranslateCommand();    // creates translate command from _taxon_names
+
         static vector<string>           _taxon_names; // all trees stored by any TreeManip use this taxon ordering
         static map<string, unsigned>    _taxon_map;   // maps taxon name found in the treefile to the index into _taxon_names
 
@@ -1098,14 +1100,20 @@ namespace op {
             }
         }
 
-        //temporary!
-        if (!newnd->_left_child) {
-            cerr << "oops: newnd has no children" << endl;
-        }
-
         refreshPreorder();
         refreshLevelorder();
         //debugCheckSplits();
+    }
+
+    string TreeManip::nexusTranslateCommand() {
+        string translate_command = "  translate\n";
+        vector<string> entries;
+        for (unsigned i = 0; i < _taxon_names.size(); i++) {
+            entries.push_back(str(format("    %d %s") % (i+1) % _taxon_names[i]));
+        }
+        translate_command += join(entries, ",\n");
+        translate_command += "\n  ;\n";
+        return translate_command;
     }
 
 }

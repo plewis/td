@@ -81,7 +81,6 @@ namespace op {
             vector<OPVertex> & avect,
             vector<OPVertex> & bvect);
 #endif
-#if 1
         static void opEdmondsKarp(
             OPVertex & source,
             OPVertex & sink,
@@ -92,17 +91,6 @@ namespace op {
             Split::treeid_t & D1,
             Split::treeid_t & D2,
             bool quiet);
-#else
-        static void opEdmondsKarp(
-            vector<OPVertex> & avect,
-            vector<OPVertex> & bvect,
-            edgemap_t & edgemap,
-            Split::treeid_t & C1,
-            Split::treeid_t & C2,
-            Split::treeid_t & D1,
-            Split::treeid_t & D2,
-            bool quiet);
-#endif
         bool opRefineSupport(
             const Split::treeid_pair_t & AB,
             Split::treeid_pair_t & AB1,
@@ -611,24 +599,7 @@ namespace op {
         string s = "";
         s += "\tlabeldistance=8\n";
         s += "\tlabelangle=0\n";
-#if 1
         s += "\theadlabel=<<font color=\"red\" face=\"Verdana\" point-size=\"12\">%.3f</font>>\n";
-#else
-        s += "\theadlabel=<\n";
-        s += "\t\t<table bgcolor=\"white\" border=\"0\">\n";
-        s += "\t\t\t<tr>\n";
-        s += "\t\t\t\t<td>\n";
-        s += "\t\t\t\t\t<font color=\"blue\" face=\"Courier\" point-size=\"10\">%.3f</font>\n";
-        s += "\t\t\t\t</td>\n";
-        s += "\t\t\t</tr>\n";
-        s += "\t\t\t<tr>\n";
-        s += "\t\t\t\t<td>\n";
-        s += "\t\t\t\t\t<font color=\"red\" face=\"Courier\" point-size=\"10\">%.3f</font>\n";
-        s += "\t\t\t\t</td>\n";
-        s += "\t\t\t</tr>\n";
-        s += "\t\t</table>\n";
-        s += "\t>\n";
-#endif
         return str(format(s) % reverse_flow);
     }
 
@@ -831,7 +802,6 @@ namespace op {
     }
 #endif
 
-#if 1
     inline void OP::opEdmondsKarp(
             OPVertex & source,
             OPVertex & sink,
@@ -884,7 +854,6 @@ namespace op {
                         }
                     }
                     else {
-#if 1
                         bool already_visited = static_cast<bool>(edge->_to->_parent_edge != nullptr);
                         if (!already_visited) {
                             // If it is a "B" vertex that has zero capacity, then the route cannot
@@ -917,46 +886,6 @@ namespace op {
                                 }
                             }
                         }
-#else
-                        // This code can be deleted once it is confirmed that the modification above works
-                        bool already_visited = static_cast<bool>(edge->_to->_parent_edge != nullptr);
-                        bool capacity_zero = static_cast<bool>(edge->_capacity == 0.0);
-                        if (already_visited && capacity_zero) {
-                        }
-                        else if (already_visited) {
-                        }
-                        else {
-                            // If it is a "B" vertex that has zero capacity, then the route cannot
-                            // go from this "B" vertex to the sink. It may, however, be able to go back to
-                            // an "A" vertex if that "A" vertex was not accessible from the source
-                            // and there is residual flow on the edge.
-                            if (edge->_to == &sink) {
-                                OPVertex * B_vertex = edge->_from;
-                                for (unsigned j = 0; j < source._edges.size(); j++) {
-                                    OPEdge * s_to_A_edge = source._edges[j];  // edge from source to an "A" vertex
-                                    if (s_to_A_edge->_capacity == 0) {
-                                        // See if any of the "A" vertex edges lead to the "B" vertex in question
-                                        OPVertex * A_vertex = s_to_A_edge->_to;
-                                        for (unsigned k = 0; k < A_vertex->_edges.size(); k++) {
-                                            OPEdge * A_to_B_edge = A_vertex->_edges[k];  // edge from "A" to a "B" vertex
-                                            if (A_vertex->_parent_edge == nullptr && A_to_B_edge->_to == B_vertex && A_to_B_edge->_reverse_flow > 0.0) {
-                                                // If we are here, we know that:
-                                                // 1. the "A" vertex has not been visited
-                                                // 2. the "A" vertex is joined to the "B" vertex in question
-                                                // 3. the "A" vertex is not accessible from the source, and
-                                                // 4. there is residual flow on the A_to_B_edge
-
-                                                A_vertex->_parent_edge = A_to_B_edge;
-                                                A_to_B_edge->_edge_is_reversed = true;
-                                                A_vertex->_residual_capacity = A_to_B_edge->_reverse_flow;
-                                                route.push_back(A_vertex);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-#endif
                     }
                 }
                 route_cursor++;
@@ -1051,159 +980,6 @@ namespace op {
             }
         }
     }
-#else
-    inline void OP::opEdmondsKarp(
-            vector<OPVertex> & avect,
-            vector<OPVertex> & bvect,
-            edgemap_t & edgemap,
-            Split::treeid_t & C1,
-            Split::treeid_t & C2,
-            Split::treeid_t & D1,
-            Split::treeid_t & D2,
-            bool quiet) {
-        // Assumes avect and bvect form an incompatibility graph that is solvable
-        // (i.e., some vertices in avect are compatible with some vertices in bvect)
-        if (!quiet) {
-            cout << "\nEdmonds-Karp" << endl;
-
-#if defined(OP_SAVE_DOT_FILE)
-            // Uncomment the line below to save graph.dot (visualization of incompatibility graph in dot language)
-            opSaveIncompatibilityGraph(avect, bvect);
-#endif
-
-        }
-
-        bool done = false;
-        while (!done) {
-            vector<OPVertex *> route;
-
-            // Make sure none of the "b" vertices are marked as visited
-            for (auto & b : bvect) {
-                b._parent_index = -1;
-            }
-
-            // Add all avect vertices to the route if they have capacity > 0
-            for (auto & a : avect) {
-                if (a._capacity > 0.0) {
-                    route.push_back(&a);
-                }
-            }
-
-            // Add all children of the "a" vertices already in the route if they have nonzero capacity
-            // and if they haven't already been added
-            auto route_size = static_cast<unsigned>(route.size());
-            for (unsigned aindex = 0; aindex < route_size; aindex++) {
-                OPVertex * a = route[aindex];
-                for (auto & b : a->_children) {
-                    if (b->_capacity > 0.0 && b->_parent_index == -1) {
-                        b->_parent_index = static_cast<int>(aindex);
-                        route.push_back(b);
-                    }
-                    else if (b->_parent_index == -1) {
-                        // B is accessible but has outgoing capacity zero; see if any viable route exists to the left
-                        // Check to see if this ever happens; if it does happen, more coding needs to happen
-                        for (unsigned ai = 0; ai < route_size; ai++) {
-                            if (route[ai]->_capacity == 0.0 && edgemap.at(make_pair(route[ai], b)) > 0.0) {
-                                throw Xop("error: need to handle reverse flow in Edmonds-Karp algorithm");
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Find B vertex that first reaches the sink
-            OPVertex * last = nullptr;
-            for (auto & r : route) {
-                if (r->_parent_index > -1) {
-                    last = r;
-                    break;
-                }
-            }
-
-            if (!last)
-                // If we did not reach the sink, we're done
-                    done = true;
-            else {
-                // Identify the route
-                auto avertex = route[last->_parent_index];
-                auto bvertex = last;
-                auto abpair = make_pair(avertex, bvertex);
-
-                // Find minimum capacity along the route
-                double min_capacity = last->_capacity;
-                if (route[last->_parent_index]->_capacity < min_capacity) {
-                    min_capacity = route[last->_parent_index]->_capacity;
-                }
-
-                if (!quiet) {
-                    cout << "\nRoute (asterisks show path obtained by following parents from sink to source):" << endl;
-                    for (unsigned i = 0; i < route.size(); i++) {
-                        if (i == last->_parent_index || route[i] == last)
-                            cout << str(format("    %s (capacity = %.3f) *") % route[i]->_split->createPatternRepresentation() % route[i]->_capacity) << endl;
-                        else
-                            cout << str(format("    %s (capacity = %.3f)") % route[i]->_split->createPatternRepresentation() % route[i]->_capacity) << endl;
-                    }
-                    cout << "  Min capacity along route: " << min_capacity << endl;
-                }
-
-                // Reduce capacity of the leftmost edge on the route by an amount min_capacity
-                avertex->_capacity -= min_capacity;
-                if (fabs(avertex->_capacity) < 1e-10) {
-                    avertex->_capacity = 0.0;
-                }
-
-                // Increase the flow on the focal edge by min_capacity
-                edgemap.at(abpair) += min_capacity;
-
-                // Reduce capacity of the rightmost edge on the route by an amount min_capacity
-                bvertex->_capacity -= min_capacity;
-                if (fabs(bvertex->_capacity) < 1e-10) {
-                    bvertex->_capacity = 0.0;
-                }
-
-#if defined(OP_SAVE_DOT_FILE)
-                if (!quiet) {
-                    // Uncomment the line below to save graph.dot (visualization of incompatibility graph in dot language)
-                    opSaveIncompatibilityGraph(avect, bvect);
-                }
-#endif
-            }
-        }
-
-        // Identify C1, C2, D1, and D2
-        // C1 and D2 compose the min weight vertex cover
-        // C2 and D` compose the independent set
-        for (auto & a : avect) {
-            if (a._capacity > 0.0) {
-                // Because this A-vertex has residual capacity, it is part of the independent set
-                C2.insert(*(a._split));
-
-                // This A vertex allows access to the B side, so any connected B vertices with
-                // zero capacity are part of the vertex cover
-                for (const auto b : a._children) {
-                    if (b->_capacity == 0.0) {
-                        D2.insert(*(b->_split));
-                    }
-                }
-            }
-            else {
-                // Because this A-vertex has zero capacity, it is part of the vertex cover
-                C1.insert(*(a._split));
-
-                // No need to consider connected B vertices because this A-vertex already
-                // covers all connected edges
-            }
-        }
-
-        // D1 includes every split not in D2
-        D1.clear();
-        for (auto & b : bvect) {
-            if (D2.count(*(b._split)) == 0) {
-                D1.insert(*(b._split));
-            }
-        }
-    }
-#endif
 
     inline bool OP::opRefineSupport(const Split::treeid_pair_t & AB, Split::treeid_pair_t & AB1, Split::treeid_pair_t & AB2) const {
         // Create a vector of incompatibility graph vertices
@@ -1577,21 +1353,8 @@ namespace op {
         // Find common edges and calculate the contribution of common edge lengths to the geodesic
         double common_edge_contribution_squared = opFindCommonEdges(A, B, commonPairs);
 
-#if 1
         in_pairs.emplace_back(A,B);
         opSplitAtCommonEdges(commonPairs, in_pairs);
-#else
-        if (!commonPairs.empty()) {
-            // Remove splits representing common edges from both A and B
-            for (auto & cpair : commonPairs) {
-                if (cpair.first.getSize() > 0)
-                    A.erase(cpair.first);
-                if (cpair.second.getSize() > 0)
-                    B.erase(cpair.second);
-            }
-        }
-        in_pairs.emplace_back(A,B);
-#endif
 
         // Calculate the contribution of leaf edges to the geodesic
         double leaf_contribution_squared = opCalcLeafContribution(Alvs, Blvs, commonPairs);
@@ -2464,7 +2227,8 @@ namespace op {
         ofstream mean_file_nexus(nxsfn);
         mean_file_nexus << "#nexus\n\n";
         mean_file_nexus << "begin trees;\n";
-        mean_file_nexus << "  tree meantree = " << mean_tree.makeNewick(9, true) << ";\n";
+        mean_file_nexus << TreeManip::nexusTranslateCommand();
+        mean_file_nexus << "  tree meantree = " << mean_tree.makeNewick(9, false) << ";\n";
         mean_file_nexus << "end;\n";
         mean_file_nexus.close();
 
@@ -2474,6 +2238,10 @@ namespace op {
         mean_file << boost::str(boost::format("# variance = %.9f\n") % variance);
         mean_file << boost::str(boost::format("# tree length = %.9f\n") % mean_tree.calcTreeLength());
         mean_file << boost::str(boost::format("# iterations = %d\n") % number_of_iterations);
+        mean_file << boost::str(boost::format("# frechet-e = %g\n") % _frechet_epsilon);
+        mean_file << boost::str(boost::format("# frechet-k = %d\n") % _frechet_k);
+        mean_file << boost::str(boost::format("# frechet-n = %d\n") % _frechet_n);
+        mean_file << boost::str(boost::format("# pseudorandom number seed = %d\n") % _random_number_seed);
         string rscript;
         double hpd_lower;
         double hpd_upper;
