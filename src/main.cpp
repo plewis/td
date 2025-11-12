@@ -55,7 +55,8 @@ string  OP::_program_name        = "op";
 // If these are changed, also change in OPDistTest.cpp
 unsigned     OP::_major_version       = 1;
 //unsigned     OP::_minor_version       = 4; // fixes major bug related to nested common edges
-unsigned     OP::_minor_version       = 5; // fixes bug resulting from polytomies in one of the two trees being compared
+//unsigned     OP::_minor_version       = 5; // fixes bug resulting from polytomies in one of the two trees being compared
+unsigned     OP::_minor_version       = 6; // now saves conf file as a record of settings used and fixes bug in TreeManip::nexusTranslateCommand
 
 bool         OP::_silent              = false; // set to true only for unit tests
 const double Node::_smallest_edge_length = 1.0e-12;

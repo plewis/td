@@ -1109,7 +1109,8 @@ namespace op {
         string translate_command = "  translate\n";
         vector<string> entries;
         for (unsigned i = 0; i < _taxon_names.size(); i++) {
-            entries.push_back(str(format("    %d %s") % (i+1) % _taxon_names[i]));
+            string with_underscores = std::regex_replace(_taxon_names[i], std::regex(" "), "_");
+            entries.push_back(str(format("    %d %s") % (i+1) % with_underscores));
         }
         translate_command += join(entries, ",\n");
         translate_command += "\n  ;\n";

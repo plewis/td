@@ -223,7 +223,7 @@ namespace op {
 
                             bool is_rooted = d.IsRooted();
                             if (is_rooted != rooted) {
-                                throw Xop(format("Tree in \"%s\" was %s but you led me to expect they would be %s") % filename % (is_rooted ? "rooted" : "unrooted") % (rooted ? "rooted" : "unrooted"));
+                                throw Xop(format("Trees in \"%s\" were %s but you specified \"rooted = %s\" (possibly by default)") % filename % (is_rooted ? "rooted" : "unrooted") % (rooted ? "yes" : "no"));
                             }
                             _is_rooted.push_back(is_rooted);
 
