@@ -199,43 +199,31 @@ namespace op {
         cout << "Settings saved in file \"" << fn << "\"" << endl;
         cout << "Rename \"" << fn << " to \"op.conf\" to recreate this analysis." << endl;
         ofstream outf(fn);
+        outf << str(format("# Configuration file for %s version %d.%d\n") % _program_name % _major_version % _minor_version);
+        outf << "# https://github.com/plewis/op/\n";
         outf << str(format("prefix = %s\n") % _prefix);
-        outf << str(format("noisy = %s\n") % (_noisy ? "yes" : "no"));
+        if (_noisy) {
+            outf << "noisy = yes\n";
+        }
         outf << str(format("seed = %d\n") % _random_number_seed);
         if (_pairwise) {
             outf << "pairwise = yes\n";
-            outf << "refdist = no\n";
-            outf << "frechetmean = no\n";
-            outf << "saveforgtp = no\n";
         }
         else if (_refdist) {
             outf << "refdist = yes\n";
-            outf << "pairwise = no\n";
-            outf << "frechetmean = no\n";
-            outf << "saveforgtp = no\n";
         }
         else if (_gtp) {
             outf << "saveforgtp = yes\n";
-            outf << "refdist = no\n";
-            outf << "pairwise = no\n";
-            outf << "frechetmean = no\n";
         }
         else if (_frechet_mean) {
             outf << "frechetmean = yes\n";
             outf << str(format("frechet-e = %.9f\n") % _frechet_epsilon);
             outf << str(format("frechet-k = %d\n") % _frechet_k);
             outf << str(format("frechet-n = %d\n") % _frechet_n);
-            outf << "saveforgtp = no\n";
-            outf << "refdist = no\n";
-            outf << "pairwise = no\n";
         }
         else {
             assert(_snapshot);
             outf << str(format("lambda = %.9f\n") % _lambda);
-            outf << "frechetmean = no\n";
-            outf << "saveforgtp = no\n";
-            outf << "refdist = no\n";
-            outf << "pairwise = no\n";
         }
         for (unsigned i = 0; i < _tree_file_names.size(); ++i) {
             outf << "treefile = " << _tree_file_names[i] << endl;
@@ -253,7 +241,7 @@ namespace op {
         desc.add_options()
             ("help,h", "produce help message")
             ("version,v", "show program version")
-            ("noisy", "show a lot of output (default: no)")
+            ("noisy",program_options::bool_switch(&_noisy), "show a lot of output (default: no)")
             ("treefile,t",  program_options::value(&_tree_file_names), "name of data file in NEXUS format (required, no default)")
             ("skip", program_options::value(&_skip), "number of trees to skip in specified treefile (default: 0)")
             ("stride", program_options::value(&_stride), "number of trees to skip before saving (default: 1)")
@@ -261,10 +249,10 @@ namespace op {
             ("precision", program_options::value(&_precision)->default_value(9), "number of digits precision to use in outputting distances (default: 9)")
             ("prefix", program_options::value(&_prefix), "filename prefix for output file name (default: 'outfile')")
             ("lambda", program_options::value(&_lambda), "specify a value in [0,1] to calculate tree at that point (assumes starting tree is first tree and ending tree is the second tree in the treefile)")
-            ("saveforgtp", "saves trees in format interpretable by Owen & Provan GTP java program)")
-            ("pairwise", "calculates pairwise distances (default: pairwise distances not calculated)")
-            ("refdist", "calculates distance of the first tree to all other trees (default: distances not calculated)")
-            ("frechetmean", "calculate Frechet mean tree and variance (default: mean and variance not calculated)")
+            ("saveforgtp", program_options::bool_switch(&_gtp),"saves trees in format interpretable by Owen & Provan GTP java program)")
+            ("pairwise", program_options::bool_switch(&_pairwise),"calculates pairwise distances (default: pairwise distances not calculated)")
+            ("refdist", program_options::bool_switch(&_refdist),"calculates distance of the first tree to all other trees (default: distances not calculated)")
+            ("frechetmean", program_options::bool_switch(&_frechet_mean),"calculate Frechet mean tree and variance (default: mean and variance not calculated)")
             ("frechet-e,e", program_options::value(&_frechet_epsilon), "successive Frechet mean approximations must all be this close to stop iterating (default: 0.00001)")
             ("frechet-n,n", program_options::value(&_frechet_n), "number of successive Frechet mean approximations to use for determining whether to stop iterating (default: 10)")
             ("frechet-k,k", program_options::value(&_frechet_k), "maximum number of Frechet mean iterations (default:1000000)")
@@ -300,10 +288,10 @@ namespace op {
             exit(0);
         }
 
-        // If the user specified --noisy on the command line, set _noisy to true
-        if (vm.count("noisy") > 0) {
-            _noisy = true;
-        }
+        // // If the user specified --noisy on the command line, set _noisy to true
+        // if (vm.count("noisy") > 0) {
+        //     _noisy = true;
+        // }
 
 #if defined(TESTKDE)
         // If the user specified --testkde on the command line, run testKDE() and quit
@@ -325,27 +313,28 @@ namespace op {
             _prefix = vm["prefix"].as<string>();
         }
 
-        // If the user specified --frechet on the command line, set _frechet_mean to true
-        if (vm.count("frechetmean") > 0) {
-            _frechet_mean = true;
-        }
+        // // If the user specified --frechetmean on the command line, set _frechet_mean to true
+        // if (vm.count("frechetmean") > 0) {
+        //     _frechet_mean = true;
+        // }
 
-        // If the user specified --pairwise on the command line, set _pairwise to true
-        if (vm.count("pairwise") > 0) {
-            _pairwise = true;
-        }
+        // // If the user specified --pairwise on the command line, set _pairwise to true
+        // if (vm.count("pairwise") > 0) {
+        //     _pairwise = true;
+        // }
 
-        // If the user specified --refdist on the command line, set _refdist to true
-        if (vm.count("refdist") > 0) {
-            _refdist = true;
-        }
+        // // If the user specified --refdist on the command line, set _refdist to true
+        // if (vm.count("refdist") > 0) {
+        //     _refdist = true;
+        // }
 
-        // If the user specified --saveforgtp on the command line, set _gtp to true
-        if (vm.count("saveforgtp") > 0) {
-            _gtp = true;
-        }
+        // // If the user specified --saveforgtp on the command line, set _gtp to true
+        // if (vm.count("saveforgtp") > 0) {
+        //     _gtp = true;
+        // }
 
-        // If the user specified --refdist on the command line, set _refdist to true
+        // If the user specified --lambda on the command line, set _snapshot to true
+        // and sanity-check the value of lambda supplied
         if (vm.count("lambda") > 0) {
             _snapshot = true;
             if (_lambda < 0.0) {
