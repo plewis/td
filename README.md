@@ -1,31 +1,54 @@
 # op
 
 Calculates the Billera-Holmes-Vogtmann geodesic distance 
-(using the Owens-Provan algorithm) distance between trees:
+(using the Owens-Provan algorithm) distance between trees.
 
-It assumes you want tree distances between some reference tree and at 
-least one other tree.
-
-If you want geodesic distances (the default) between the first tree in 
+If you want geodesic distances between the first tree in 
 trees.tre and all the others,
 
-./op --treefile trees.tre
+op --treefile trees.tre --refdist --noisy
 
-If you want geodesic distances (the default) between the first tree in 
-trees.tre and all the others, and you want to see all the details,
+Including --noisy results in a lot of output, so you may 
+want to only use this when trees.tre contains only two trees.
 
-./op --treefile trees.tre --quiet no
+If you want geodesic distances between every pair of trees,
 
-If you want to calculate the Frechet mean tree, variance, and 95% HPD interval, specify a file name prefix (e.g. "meantree") and the parameters that
-determine the stopping criterion for determining the mean:
+op --treefile trees.tre --pairwise
+
+If you want to save the tree that is a fraction 0.7 of
+the distance between the first and second tree in trees.tre,
+
+op --treefile trees.tre --lambda 0.7
+
+If you want to save trees in a format that can be read directly
+by GTP (Java program by Owen and Provan),
+
+op --treefile trees.tre --saveforgtp
+
+If you want to calculate the Frechet mean tree,
+specify a file name prefix (e.g. "meantree") and the parameters that
+determine the stopping criterion:
 * k is the maximum number of iterations
 * n  is the number of recent iterations to compare
-* epsilon is the maximum amount by which every pairwise comparison of recent iterations must differ in order to stop. 
-The following example uses values for k, n, and epsilon similar to those used by Brown and Owen (2020):
+* epsilon is the maximum amount by which every pairwise comparison 
+of recent iterations must differ in order to stop. 
 
-./op --treefile trees.tre --frechet meantree --frechet-k 1000000 --frechet-n 10 --frehet-epsilon 0.00001
+The following example uses the default values for k (1000000), 
+n (10), and epsilon (0.00001), which are similar to those 
+used by Brown and Owen (2020):
 
-The resulting output file will, in this case, be named "meantree.txt" and will contain comments (lines beginning with #) specifying the mean tree newick description. tree length, variance, and the 95% HPD interval lower and upper bounds. The file can also be executed in R to plot the kernel density of tree distances with 95% HPD shaded.
+op --treefile trees.tre --frechetmean --prefix meantree
+
+You can also specify k, n, or epsilon explicitly:
+
+op --treefile trees.tre --prefix meantree --frechetmean --frechet-e 0.001 --frechet-n 20 --frechet-k 10000
+
+The resulting output file will, in this case, be named "meantree.R" 
+and will contain comments (lines beginning with #) specifying the 
+mean tree newick description. tree length, variance, and the 
+95% HPD interval lower and upper bounds. The file can also 
+be executed in R to plot the kernel density of tree distances 
+with 95% HPD shaded.
 
 Other options can be seen by asking for help:
 
