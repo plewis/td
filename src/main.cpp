@@ -68,6 +68,7 @@ unsigned OP::_graph_number          = 1;
 #endif
 
 int main(int argc, const char * argv[]) {
+    int return_code = 0;
     try {
         OP strom;
         strom.processCommandLineOptions(argc, argv);
@@ -76,10 +77,12 @@ int main(int argc, const char * argv[]) {
     catch(std::exception & x) {
         cerr << "Exception: " << x.what() << endl;
         cerr << "Aborted." << endl;
+        return_code = 1;
     }
     catch(...) {
         cerr << "Exception of unknown type!\n";
+        return_code = 2;
     }
 
-    return 0;
+    return return_code;
 }

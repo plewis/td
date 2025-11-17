@@ -239,10 +239,13 @@ namespace op {
                 newick += "(";
                 node_stack.push(nd);
                 if (root_tip) {
-                    if (use_names)
-                        newick += str(format(tip_node_format_using_names) % root_tip->_name % nd->_edge_length);
-                    else
+                    if (use_names) {
+                        string with_underscores = std::regex_replace(_taxon_names[root_tip->_number], std::regex(" "), "_");
+                        newick += str(format(tip_node_format_using_names) % with_underscores % nd->_edge_length);
+                    }
+                    else {
                         newick += str(format(tip_node_format) % (root_tip->_number + 1) % nd->_edge_length);
+                    }
                     newick += ",";
                     root_tip = nullptr;
                 }

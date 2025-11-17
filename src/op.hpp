@@ -2473,41 +2473,36 @@ namespace op {
 #endif
 
     inline void OP::run() {
-        try {
-            outputVersionAndSettings();
-            readTrees();
+        outputVersionAndSettings();
+        readTrees();
 
-            if (_gtp) {
-                outputForGTP();
-                return;
-            }
-
-            if (_snapshot) {
-                moveAlongPath();
-                return;
-            }
-
-            if (_pairwise) {
-                calcPairwise();
-                return;
-            }
-
-            if (_frechet_mean) {
-                calcFrechetMean();
-                return;
-            }
-
-            // Compute the geodesic distance between the first tree and all others
-            if (_refdist) {
-                calcDistanceToReference();
-                return;
-            }
-
-            cerr << "OP was not asked to do anything with the trees in the specified treefile!" << endl;
+        if (_gtp) {
+            outputForGTP();
+            return;
         }
-        catch (Xop & x) {
-            cerr << "OP encountered a problem:\n  " << x.what() << endl;
-            }
-    }
 
-} // namespace op
+        if (_snapshot) {
+            moveAlongPath();
+            return;
+        }
+
+        if (_pairwise) {
+            calcPairwise();
+            return;
+        }
+
+        if (_frechet_mean) {
+            calcFrechetMean();
+            return;
+        }
+
+        // Compute the geodesic distance between the first tree and all others
+        if (_refdist) {
+            calcDistanceToReference();
+            return;
+        }
+
+        cerr << "OP was not asked to do anything with the trees in the specified treefile!" << endl;
+    }
+}
+
