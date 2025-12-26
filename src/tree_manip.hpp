@@ -27,6 +27,8 @@ namespace op {
 
         void                        setTree(const Tree::SharedPtr & t);
         Tree::SharedPtr             getTree();
+        void                        setIsRooted(bool is_rooted);
+        bool                        getIsRooted() const;
         double                      calcTreeLength() const;
         void                        scaleAllEdgeLengths(double scaler) const;
         void                        createTestTree();
@@ -45,6 +47,7 @@ namespace op {
         unsigned                    debugCountUnusedNodes() const;
 
         static string               nexusTranslateCommand();    // creates translate command from _taxon_names
+        static string               renumberNewick(const string & newick, map<unsigned, unsigned> taxon_index_map);
 
         static vector<string>           _taxon_names; // all trees stored by any TreeManip use this taxon ordering
         static map<string, unsigned>    _taxon_map;   // maps taxon name found in the treefile to the index into _taxon_names
@@ -63,21 +66,22 @@ namespace op {
         static bool                 canHaveSibling(const Node * nd, bool rooted, bool allow_polytomies);
 
         Tree::SharedPtr             _tree;
+        bool                        _is_rooted;
 
     public:
 
         typedef std::shared_ptr< TreeManip > SharedPtr;
     };
 
-    inline TreeManip::TreeManip()
-    {
+    inline TreeManip::TreeManip() {
         //cerr << "Constructing a TreeManip" << endl;
+        _is_rooted = true;
         _tree.reset();
     }
 
-    inline TreeManip::TreeManip(const Tree::SharedPtr & t)
-    {
+    inline TreeManip::TreeManip(const Tree::SharedPtr & t) {
         //cerr << "Constructing a TreeManip with a supplied tree" << endl;
+        _is_rooted = true;
         _tree.reset();
         setTree(t);
     }
@@ -103,36 +107,38 @@ namespace op {
         }
     }
 
-    inline void TreeManip::setTree(const Tree::SharedPtr & t)
-    {
+    inline void TreeManip::setTree(const Tree::SharedPtr & t) {
         assert(t);
         _tree = t;
     }
 
-    inline Tree::SharedPtr TreeManip::getTree()
-    {
+    inline Tree::SharedPtr TreeManip::getTree() {
         return _tree;
     }
 
-    inline double TreeManip::calcTreeLength() const
-    {
+    inline void TreeManip::setIsRooted(bool is_rooted) {
+        _is_rooted = is_rooted;
+    }
+
+    inline bool TreeManip::getIsRooted() const {
+        return _is_rooted;
+    }
+
+    inline double TreeManip::calcTreeLength() const {
         double TL = 0.0;
-        for (auto nd : _tree->_preorder)
-        {
+        for (auto nd : _tree->_preorder) {
             TL += nd->_edge_length;
         }
         return TL;
     }
 
     inline void TreeManip::scaleAllEdgeLengths(double scaler) const {
-        for (auto nd : _tree->_preorder)
-        {
+        for (auto nd : _tree->_preorder) {
             nd->_edge_length *= scaler;
         }
     }
 
-    inline void TreeManip::createTestTree()
-    {
+    inline void TreeManip::createTestTree() {
         _tree.reset();
         _tree = std::make_shared<Tree>();
         _tree->_nodes.resize(6);
@@ -222,8 +228,7 @@ namespace op {
         _tree->_levelorder.push_back(second_leaf);
     }
 
-    inline string TreeManip::makeNewick(unsigned precision, bool use_names) const
-    {
+    inline string TreeManip::makeNewick(unsigned precision, bool use_names) const {
         if (use_names && _taxon_names.empty()) {
             throw Xop("Cannot use taxon names in makeNewick when no taxon names have been saved");
         }
@@ -1118,6 +1123,88 @@ namespace op {
         translate_command += join(entries, ",\n");
         translate_command += "\n  ;\n";
         return translate_command;
+    }
+
+    inline string TreeManip::renumberNewick(const string & newick, map<unsigned, unsigned> taxon_index_map) {
+        // Returns a newick tree description in which the taxa (assumed to be numbers) have been
+        // translated by taxon_index_map. For example, assume taxon number in newick equals 3, which
+        // means the index of this taxon is 3-1 = 2. Suppose taxon_index_map[2] = 0, then renumbered_newick
+        // will have 0 + 1 = 1 where the original newick had 3.
+        string renumbered_newick;
+
+        // Construct a regular expression pattern that identifies taxon numbers in newick descriptions
+        regex taxon_regex(R"([(,]\s*(\d+)\s*(?=[,):]))");
+        //                      [(,] <-- leaves always follow a left parentheses or a comma
+        //                          \s* <-- possibly some whitespace before taxon name
+        //                             (\d+) <-- a number
+        //                                  \s* <-- possibly some whitespace after name
+        //                                     (?=[,):]) <-- lookahead to comma, semicolon, or right paren
+
+        // Create a match object
+        std::smatch taxon_match;
+
+        // Create a variable to store the starting iterator because we will need
+        // to change this after each match is found
+        auto search_start = newick.cbegin();
+
+        // These keep track of which parts of the newick string have already been dealt with
+        // (i.e. before prev_pos) and the position of the current match (i.e. curr_pos)
+        string::size_type prev_pos = 0;
+        string::size_type curr_pos = 0;
+
+        // Search through the part of newick from ssearch_start onward, stopping if there is a match
+        while (std::regex_search(search_start, newick.cend(), taxon_match, taxon_regex)) {
+            // A match was found, so extract the taxon number
+            unsigned taxon_number = 0;
+            try {
+                taxon_number = stod(taxon_match[1]);
+            } catch (const std::invalid_argument &) {
+                throw Xop(format("Could not match taxon number at position %d in newick tree description \"%s\"") % taxon_match.position(1) % newick);
+            }
+
+            // Taxon number should follow nexus 1-offset standard
+            assert(taxon_number > 0);
+
+            // Get the index of this taxon by subtracting 1
+            unsigned taxon_index = taxon_number - 1;
+
+            // Look up the new index in taxon_index_map
+            unsigned new_index = taxon_index_map.at(taxon_index);
+
+            // The new taxon number will be the taxon index plus 1
+            unsigned new_number = new_index + 1;
+
+            // Get the length of the match (i.e. number of characters in the taxon number)
+            string::size_type match_len = taxon_match.length(1);
+
+            // Update curr_pos to be the position, relative to search_atart, of the start of the match
+            curr_pos = taxon_match.position(1);
+
+            // Get that part of newick starting at prev_pos and ending just before the current match
+            // Note that curr_pos here is the length of the substring
+            string prev_text = newick.substr(prev_pos, curr_pos);
+
+            // Append prev_text and the new taxon number to renumbered_newick
+            renumbered_newick += str(format("%s%d") % prev_text % new_number);
+
+            // Update prev_oos by adding the number of characters since search_start (curr_oos)
+            // and the length of the match (match_len)
+            prev_pos += curr_pos + match_len;
+
+            // Update search start so that the next search will start where this one left off
+            // Why first? taxon_match.suffix() returns a pair of iterators pointing to the
+            // beginning and end of the suffix. We want to begin again at the start of the
+            // suffix, hence we let search_start equal suffix().first.
+            search_start = taxon_match.suffix().first;
+        }
+
+        // Add the part of newick that is beyond the last match
+        // Note: not specifying a length means that the substring extends
+        // from prev_pos to the end of the string
+        string final_text = newick.substr(prev_pos);
+        renumbered_newick += final_text;
+
+        return renumbered_newick;
     }
 
 }

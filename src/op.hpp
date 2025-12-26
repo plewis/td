@@ -1,4 +1,10 @@
-    #pragma once
+#pragma once
+
+// Not sure why the following include is necessary (it is also in main.cpp above the line including op.hpp)
+// but if it is omitted, I get the following fatal compiler error:
+// "error: use of undeclared identifier 'filesystem'; did you mean 'std::__fs::filesystem'?"
+// Could use std::filesystem if compiled under c++17 instead of c++11
+#include <boost/filesystem.hpp>
 
 using namespace std;
 using namespace boost;
@@ -17,6 +23,8 @@ namespace op {
     private:
 
         void readTrees();
+        //void assertFileExists(string fn) const;
+        void shrinkToHPD();
         void outputForGTP() const;
         void moveAlongPath();
         void calcDistanceToReference() const;
@@ -30,8 +38,9 @@ namespace op {
 #endif
         void calcBandWidth(const vector<double> & sample);
         double kernelDensity(double x, const vector<double> & sample) const;
-        void rPlotDists(vector<double> & dists, string & rscript, double & radius, double & hpd_lower, double & hpd_upper, double hpd_level);
+        void rPlotDists(vector<double> & dists, string & rscript, double & radius, double & hpd_lower, double & hpd_upper, unsigned hpd_level);
         bool findEmpiricalHPDwaterline(double & hpd_cutoff, double & min_log_posterior, double & max_log_posterior) const;
+        void buildRefTree(TreeManip & tm) const;
         void buildTree(unsigned tree_index, TreeManip & tm) const;
         void calcBHVDistanceForPairs(
             unsigned start_pair,
@@ -107,14 +116,22 @@ namespace op {
         bool                    _gtp;
         bool                    _refdist;
         bool                    _frechet_mean;
-        bool                    _save_credible_set;
+        //bool                    _save_credible_set;
+        bool                    _save_trees;
         unsigned                _nthreads;
         unsigned                _precision;
         unsigned                _random_number_seed;
         vector<unsigned>        _skip;
         vector<unsigned>        _stride;
+        vector<int>             _keep;
+        vector<int>             _subsample;
+        vector<unsigned>        _subseed;
         vector<bool>            _rooted;
         vector<string>          _tree_file_names;
+        string                  _ref_tree_filename;
+        unsigned                _refskip;
+        bool                    _refrooted;
+        double                  _refscale;
         double                  _lambda;
         vector<double>          _scale_by;
         TreeSummary::SharedPtr  _tree_summary;
@@ -122,6 +139,9 @@ namespace op {
         double                  _frechet_epsilon;
         unsigned                _frechet_n;
         unsigned                _frechet_k;
+
+        bool                    _hpd_radius;
+        unsigned                _radius_percent;
 
         double                  _kde_bandwidth;
         double                  _kde_sigma;
@@ -151,16 +171,22 @@ namespace op {
         _gtp(false),
         _refdist(false),
         _frechet_mean(false),
-        _save_credible_set(false),
+        //_save_credible_set(false),
+        _save_trees(false),
         _nthreads(1),
         _precision(9),
         _random_number_seed(1),
-        _tree_file_names(),
+        _ref_tree_filename(""),
+        _refskip(0),
+        _refrooted(false),
+        _refscale(1.0),
         _lambda(0.5),
         _tree_summary(nullptr),
         _frechet_epsilon(0.00001),
         _frechet_n(10),
         _frechet_k(1000000),
+        _hpd_radius(false),
+        _radius_percent(95),
         _kde_bandwidth(0.0),
         _kde_sigma(0.0),
         _kde_q25(0.0),
@@ -195,6 +221,10 @@ namespace op {
             return;
 
         cout << str(format("%s version %d.%d") % OP::_program_name % OP::_major_version % OP::_minor_version) << endl;
+
+        filesystem::path currentPath = filesystem::current_path();
+        cerr << "Current working directory: " << currentPath << endl;
+
         string fn = _prefix + "-op.conf";
         cout << "Settings saved in file \"" << fn << "\"" << endl;
         cout << "Rename \"" << fn << " to \"op.conf\" to recreate this analysis." << endl;
@@ -205,12 +235,23 @@ namespace op {
         if (_noisy) {
             outf << "noisy = yes\n";
         }
+        if (_hpd_radius) {
+            outf << "hpdrad = yes\n";
+        }
+        outf << "radpct = " << _radius_percent << "\n";
+        if (_save_trees) {
+            outf << "savetrees = yes\n";
+        }
         outf << str(format("seed = %d\n") % _random_number_seed);
         if (_pairwise) {
             outf << "pairwise = yes\n";
         }
         else if (_refdist) {
-            outf << "refdist = yes\n";
+            //outf << "refdist = yes\n";
+            outf << "reftree = " << _ref_tree_filename << endl;
+            outf << "refskip = " << _refskip << endl;
+            outf << "refrooted = " << (_refrooted ? "yes" : "no") << endl;
+            outf << str(format("refscale = %.9f") % _refscale) << endl;
         }
         else if (_gtp) {
             outf << "saveforgtp = yes\n";
@@ -220,6 +261,8 @@ namespace op {
             outf << str(format("frechet-e = %.9f\n") % _frechet_epsilon);
             outf << str(format("frechet-k = %d\n") % _frechet_k);
             outf << str(format("frechet-n = %d\n") % _frechet_n);
+            outf << str(format("hpdrad = %s\n") % (_hpd_radius ? "yes" : "no"));
+            outf << str(format("radpct = %d\n") % _radius_percent);
         }
         else {
             assert(_snapshot);
@@ -229,6 +272,9 @@ namespace op {
             outf << "treefile = " << _tree_file_names[i] << endl;
             outf << "skip = " << _skip[i] << endl;
             outf << "stride = " << _stride[i] << endl;
+            outf << "keep = " << _keep[i] << endl;
+            outf << "subsample = " << _subsample[i] << endl;
+            outf << "subseed = " << _subseed[i] << endl;
             outf << "rooted = " << (_rooted[i] ? "yes" : "no") << endl;
             outf << str(format("scale = %.9f\n") % _scale_by[i]);
         }
@@ -242,24 +288,34 @@ namespace op {
             ("help,h", "produce help message")
             ("version,v", "show program version")
             ("noisy",program_options::bool_switch(&_noisy), "show a lot of output (default: no)")
-            ("treefile,t",  program_options::value(&_tree_file_names), "name of data file in NEXUS format (required, no default)")
+            ("reftree",  program_options::value(&_ref_tree_filename), "name of reference tree file in NEXUS format; output will be distances from this reference tree to all trees specified with --treefile (no default)")
+            ("refskip", program_options::value(&_refskip), "number of trees to skip in specified reference tree file (default: 0)")
+            ("refrooted", program_options::value(&_refrooted), "assume reference tree is rooted (default: no)")
+            ("refscale", program_options::value(&_refscale), "rescale reference tree by this multiplicative factor (default: 1.0)")
+            ("treefile,t",  program_options::value(&_tree_file_names), "name of tree file in NEXUS format (no default)")
             ("skip", program_options::value(&_skip), "number of trees to skip in specified treefile (default: 0)")
             ("stride", program_options::value(&_stride), "number of trees to skip before saving (default: 1)")
+            ("keep", program_options::value(&_keep), "number of trees to retain from treefile (default: all)")
+            ("subsample", program_options::value(&_subsample), "number of trees to randomly retain (default: no random subsampling)")
+            ("subseed", program_options::value(&_subseed), "random number seed to use for subsampling (default: 1)")
             ("rooted", program_options::value(&_rooted), "assume trees are rooted (default: no)")
             ("precision", program_options::value(&_precision)->default_value(9), "number of digits precision to use in outputting distances (default: 9)")
             ("prefix", program_options::value(&_prefix), "filename prefix for output file name (default: 'outfile')")
             ("lambda", program_options::value(&_lambda), "specify a value in [0,1] to calculate tree at that point (assumes starting tree is first tree and ending tree is the second tree in the treefile)")
-            ("saveforgtp", program_options::bool_switch(&_gtp),"saves trees in format interpretable by Owen & Provan GTP java program)")
             ("pairwise", program_options::bool_switch(&_pairwise),"calculates pairwise distances (default: pairwise distances not calculated)")
-            ("refdist", program_options::bool_switch(&_refdist),"calculates distance of the first tree to all other trees (default: distances not calculated)")
+            //("refdist", program_options::bool_switch(&_refdist),"calculates distance of the first tree to all other trees (default: distances not calculated)")
             ("frechetmean", program_options::bool_switch(&_frechet_mean),"calculate Frechet mean tree and variance (default: mean and variance not calculated)")
             ("frechet-e,e", program_options::value(&_frechet_epsilon), "successive Frechet mean approximations must all be this close to stop iterating (default: 0.00001)")
             ("frechet-n,n", program_options::value(&_frechet_n), "number of successive Frechet mean approximations to use for determining whether to stop iterating (default: 10)")
             ("frechet-k,k", program_options::value(&_frechet_k), "maximum number of Frechet mean iterations (default:1000000)")
+            ("hpdrad",program_options::bool_switch(&_hpd_radius), "radius includes all trees within the radpct HPD credible set (default is that radius includes a percentage radpct of trees without regard to posterior)")
+            ("radpct", program_options::value(&_radius_percent), "radius includes this fraction of sampled trees closest to mean (default: 0.95)")
             ("seed", program_options::value(&_random_number_seed), "pseudorandom number generator seed (used only when estimating mean tree)")
             ("scale", program_options::value(&_scale_by), "rescale all input trees by this multiplicative factor (default: 1.0)")
             ("nthreads", program_options::value(&_nthreads), "number of threads to use in determining Frechet mean (default: 1)")
-            ("credset","if posterior available (i.e. treefile from RevBayes), output 95% credible set of trees and extreme trees (default: no)")
+            ("saveforgtp", program_options::bool_switch(&_gtp),"saves trees in format interpretable by Owen & Provan GTP java program)")
+            ("savetrees","save trees after any HPD filtering and subsampling has taken place in nexus format with \"-op.tre\" extension (default: no)")
+            //("credset","if posterior available (i.e. treefile from RevBayes), output credible set of trees and extreme trees (default: no)")
 #if defined(TESTKDE)
             ("testkde", "test kernel density estimation")
 #endif
@@ -313,26 +369,6 @@ namespace op {
             _prefix = vm["prefix"].as<string>();
         }
 
-        // // If the user specified --frechetmean on the command line, set _frechet_mean to true
-        // if (vm.count("frechetmean") > 0) {
-        //     _frechet_mean = true;
-        // }
-
-        // // If the user specified --pairwise on the command line, set _pairwise to true
-        // if (vm.count("pairwise") > 0) {
-        //     _pairwise = true;
-        // }
-
-        // // If the user specified --refdist on the command line, set _refdist to true
-        // if (vm.count("refdist") > 0) {
-        //     _refdist = true;
-        // }
-
-        // // If the user specified --saveforgtp on the command line, set _gtp to true
-        // if (vm.count("saveforgtp") > 0) {
-        //     _gtp = true;
-        // }
-
         // If the user specified --lambda on the command line, set _snapshot to true
         // and sanity-check the value of lambda supplied
         if (vm.count("lambda") > 0) {
@@ -344,9 +380,19 @@ namespace op {
             }
         }
 
+        // // If the user specified --frechet on the command line, set _frechet_mean to true
+        // if (vm.count("credset") > 0) {
+        //     _save_credible_set = true;
+        // }
+
         // If the user specified --frechet on the command line, set _frechet_mean to true
-        if (vm.count("credset") > 0) {
-            _save_credible_set = true;
+        if (vm.count("savetrees") > 0) {
+            _save_trees = true;
+        }
+
+        // If the user specified --reftree on the command line, set _refdist to true
+        if (vm.count("reftree") > 0) {
+            _refdist = true;
         }
 
         if (_nthreads > 1)
@@ -362,7 +408,7 @@ namespace op {
         if (!ok) {
             cerr << "Sorry, you can only do one of these things during a single run: " << endl;
             cerr << "(1) calculate pairwise distances (pairwise); " << endl;
-            cerr << "(2) calculate distance from first tree to all other trees (refdist);" << endl;
+            cerr << "(2) calculate distance from a reference tree to all other trees (refdist is yes if reftree is specified);" << endl;
             cerr << "(3) calculate frechet mean and variance (frechet); or" << endl;
             cerr << "(4) move along path a specified distance (lambda)" << endl;
             cerr << "(5) save trees for use with Owen & Provan GTP software" << endl;
@@ -389,6 +435,30 @@ namespace op {
         }
         else if (_stride.size() != _tree_file_names.size()) {
             throw Xop("If specified for any treefile, a stride setting must be provided for every treefile");
+        }
+
+        if (_keep.empty()) {
+            // keep is -1 by default, which results in saving every tree
+            _keep.resize(_tree_file_names.size(), -1);
+        }
+        else if (_keep.size() != _tree_file_names.size()) {
+            throw Xop("If specified for any treefile, a keep setting must be provided for every treefile");
+        }
+
+        if (_subsample.empty()) {
+            // subsample is -1 by default, which results in saving every tree (i.e. no subsampling)
+            _subsample.resize(_tree_file_names.size(), -1);
+        }
+        else if (_subsample.size() != _tree_file_names.size()) {
+            throw Xop("If specified for any treefile, a subsample setting must be provided for every treefile");
+        }
+
+        if (_subseed.empty()) {
+            // subseed is 1 by default
+            _subseed.resize(_tree_file_names.size(), 1);
+        }
+        else if (_subseed.size() != _tree_file_names.size()) {
+            throw Xop("If specified for any treefile, a subseed setting must be provided for every treefile");
         }
 
         if (_rooted.empty()) {
@@ -1324,10 +1394,25 @@ namespace op {
         return geodesic_distance;
     }
 
+    inline void OP::buildRefTree(TreeManip & tm) const {
+        string newick = _tree_summary->getRefNewick();
+        assert(!newick.empty());
+
+        bool isrooted = _tree_summary->isRefRooted();
+        tm.setIsRooted(isrooted);
+        try {
+            tm.buildFromNewick(newick, /*rooted*/isrooted, /*allow_polytomies*/true);
+        } catch (Xop & e) {
+            cerr << "Could not build reference tree" << endl;
+            throw e;
+        }
+    }
+
     inline void OP::buildTree(unsigned tree_index, TreeManip & tm) const {
         string newick = _tree_summary->getNewick(tree_index);
 
         bool isrooted = _tree_summary->isRooted(tree_index);
+        tm.setIsRooted(isrooted);
         //if (!isrooted) {
         //    throw Xop("Trees must be rooted in this version");
         //}
@@ -2014,7 +2099,7 @@ namespace op {
         return f;
     }
 
-    inline void OP::rPlotDists(vector<double> & dists, string & rscript, double & radius, double & hpd_lower, double & hpd_upper, double hpd_level) {
+    inline void OP::rPlotDists(vector<double> & dists, string & rscript, double & radius, double & hpd_lower, double & hpd_upper, unsigned hpd_level) {
         assert(!dists.empty());
 
         // Create a data set mirrored across the lower boundary 0.0
@@ -2041,7 +2126,8 @@ namespace op {
         sort(density_dist.begin(), density_dist.end(), greater<pair<double, double> >());
 
         // Find cutoff such that indices 0 to cutoff constitute the HPD
-        auto cutoff = static_cast<unsigned>(floor(static_cast<double>(density_dist.size()) * hpd_level));
+        auto cutoff = static_cast<unsigned>(ceil(static_cast<double>(0.01*hpd_level*density_dist.size())));
+        assert(cutoff <= density_dist.size());
 
         // Initialize hpd_lower to largest distance
         hpd_lower = *max_element(dists.begin(), dists.end());
@@ -2063,7 +2149,7 @@ namespace op {
         sort(density_dist.begin(), density_dist.end(), [](const pair<double, double> & left, const pair<double, double> & right) {
             return left.second < right.second;
         });
-        radius = density_dist[cutoff].second;
+        radius = density_dist[cutoff - 1].second;
 
         rscript = "cwd = system('cd \"$( dirname \"$0\" )\" && pwd', intern = TRUE)\n";
         rscript += "setwd(cwd)\n";
@@ -2145,27 +2231,71 @@ namespace op {
             % (ntrees*ntrees) % ntrees % ntrees % ntrees % ntrees) << endl;
         distf << "m[lower.tri(m, diag = FALSE)] <- lower_triangle_by_column" << endl;
         distf << "d <- as.dist(m)" << endl;
-        distf << "#mapping <- cmdscale(d, 2)" << endl;
-        distf << "#plot(mapping, asp=1, ann=F, axes=F, col=\"navy\", pch=16)" << endl;
         distf.close();
+
+        // string gofn = _prefix + "-go.R";
+        // ofstream gof(gofn);
+        // gof << "setwd(getSrcDirectory(function(){})[1])" << endl;
+        // gof << "source(\"" << fn << "\")" << endl;
+        // gof << "mapping <- cmdscale(d, 2)" << endl;
+        // gof << "n <- nrow(mapping)" << endl;
+        // gof << "cols <- c(rep(\"navy\", n-1),\"red\")" << endl;
+        // gof << "plot(mapping, asp=1, ann=F, axes=F, col=cols, pch=16)" << endl;
+        // gof.close();
 
         if (_noisy)
             cout << "Done." << endl;
     }
 
+#if defined(REFDIST_TREEFILE)
     inline void OP::calcDistanceToReference() const {
+        string fn = _prefix + ".tre";
         if (_noisy)
-            cout << "Writing geodesic distances to file \"bhvdists.txt\"" << endl;
+            cout << "Writing geodesic distances (sorted) to file \"" << fn << "\"" << endl;
 
         int ndecimals = static_cast<int>(_precision);
         unsigned ntrees = _tree_summary->getNumTrees();
-        string fn = _prefix + ".txt";
+        TreeManip starttm;
+        buildRefTree(starttm);
+        vector< std::tuple<double, unsigned, bool, string> > tvect;
+        for (unsigned i = 0; i < ntrees; i++) {
+            TreeManip endtm;
+            buildTree(i, endtm);
+            vector<Split::treeid_pair_t> ABpairs;
+            vector<Split::split_pair_t> commonPairs;
+            vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+            double bhvdist = calcBHVDistance(starttm, endtm, in_pairs, ABpairs, commonPairs);
+            string newick = endtm.makeNewick(9, true);
+            tvect.emplace_back(bhvdist, i, endtm.getIsRooted(), newick);
+        }
+        sort(tvect.begin(), tvect.end());
         ofstream outf(fn);
-#if defined(CLUSTER_DISTANCE)
-        outf << "tree\tgeodesic\tcluster" << endl;
+        outf << "#nexus\n\n";
+        outf << "begin trees;\n";
+        for (const auto & t : tvect) {
+            double dist    = get<0>(t);
+            unsigned i     = get<1>(t);
+            bool is_rooted = get<2>(t);
+            string newick  = get<3>(t);
+            outf << "  tree t" << i << " [bhvdist = " << setprecision(9) << dist << "] = " << (is_rooted ? "[&R] " : "[&U] ") << newick << ";\n";
+        }
+        outf << "end;" << endl;
+        outf.close();
+    }
 #else
-        outf << "tree\tgeodesic" << endl;
-#endif
+    inline void OP::calcDistanceToReference() const {
+        string fn = _prefix + ".txt";
+        if (_noisy)
+            cout << "Writing geodesic distances (sorted) to file \"" << fn << "\"" << endl;
+
+        int ndecimals = static_cast<int>(_precision);
+        unsigned ntrees = _tree_summary->getNumTrees();
+        ofstream outf(fn);
+#   if defined(CLUSTER_DISTANCE)
+        outf << "tree\tgeodesic\tcluster\tnewick" << endl;
+#   else
+        outf << "tree\tgeodesic\tnewick" << endl;
+#   endif
         TreeManip starttm;
         buildTree(0, starttm);
         for (unsigned i = 1; i < ntrees; i++) {
@@ -2175,15 +2305,16 @@ namespace op {
             vector<Split::split_pair_t> commonPairs;
             vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
             double bhvdist = calcBHVDistance(starttm, endtm, in_pairs, ABpairs, commonPairs);
-#if defined(CLUSTER_DISTANCE)
+#   if defined(CLUSTER_DISTANCE)
             double clusterdist = calcClusterDistance(starttm, endtm, in_pairs, commonPairs);
             outf << (i+1) << '\t' << setprecision(ndecimals) << bhvdist << '\t' << setprecision(ndecimals) << clusterdist << '\n';
-#else
+#   else
             outf << (i+1) << '\t' << setprecision(ndecimals) << bhvdist << '\n';
-#endif
+#   endif
         }
         outf.close();
     }
+#endif
 
     inline bool OP::findEmpiricalHPDwaterline(double & hpd_cutoff, double & min_log_posterior, double & max_log_posterior) const {
         hpd_cutoff = numeric_limits<double>::lowest();
@@ -2197,7 +2328,7 @@ namespace op {
             sort(log_posteriors_sorted.begin(), log_posteriors_sorted.end(), greater<double>());
 
             // Empirical HPD interval is obtained from trees having log posterior > hpd_cutoff
-            unsigned last = static_cast<unsigned>(floor(0.95*nposteriors));
+            unsigned last = static_cast<unsigned>(floor(0.01*_radius_percent*nposteriors));
             hpd_cutoff = log_posteriors_sorted[last];
 
             min_log_posterior = *log_posteriors_sorted.rbegin();
@@ -2225,19 +2356,19 @@ namespace op {
         // Compute the variance
         double variance = 0.0;
         vector<double> bhvdists(ntrees, 0.0);
-        double empirical_hpd_lower = numeric_limits<double>::max(); // smallest distance inside 95% HPD credible set of trees
-        double empirical_hpd_upper = 0.0;                           // largest distance inside 95% HPD credible set of trees
+        double empirical_hpd_lower = numeric_limits<double>::max(); // smallest distance inside HPD credible set of trees
+        double empirical_hpd_upper = 0.0;                           // largest distance inside HPD credible set of trees
         double smallest_distance = numeric_limits<double>::max();
         double largest_distance = 0.0;
         auto log_posteriors = _tree_summary->getLogPosteriors();
 
-        // These only used if log posteriors are available and _save_credible_set is true
-        TreeManip furthest_tree_inside_HPD_credible_set;
-        double furthest_distance_inside_HPD_credible_set = 0.0;
-        double furthest_inside_log_posterior = 0.0;
-        TreeManip closest_tree_not_inside_HPD_credible_set;
-        double closest_distance_not_inside_HPD_credible_set = numeric_limits<double>::max();
-        double closest_outside_log_posterior = 0.0;
+        // // These only used if log posteriors are available and _save_credible_set is true
+        // TreeManip furthest_tree_inside_HPD_credible_set;
+        // double furthest_distance_inside_HPD_credible_set = 0.0;
+        // double furthest_inside_log_posterior = 0.0;
+        // TreeManip closest_tree_not_inside_HPD_credible_set;
+        // double closest_distance_not_inside_HPD_credible_set = numeric_limits<double>::max();
+        // double closest_outside_log_posterior = 0.0;
 
         for (unsigned i = 0; i < ntrees; i++) {
             TreeManip tm;
@@ -2254,44 +2385,45 @@ namespace op {
             if (bhvdist > largest_distance) {
                 largest_distance = bhvdist;
             }
-            if (log_posteriors_available && _save_credible_set) {
-                double logp = log_posteriors[i];
-                if (logp > empirical_hpd_cutoff) {
-                    if (bhvdist > furthest_distance_inside_HPD_credible_set) {
-                        furthest_tree_inside_HPD_credible_set.setTree(tm.getTree());
-                        furthest_inside_log_posterior = logp;
-                    }
-                    if (bhvdist < empirical_hpd_lower) {
-                        empirical_hpd_lower = bhvdist;
-                    }
-                    if (bhvdist > empirical_hpd_upper) {
-                        empirical_hpd_upper = bhvdist;
-                    }
-                }
-                else {
-                    if (bhvdist < closest_distance_not_inside_HPD_credible_set) {
-                        closest_tree_not_inside_HPD_credible_set.setTree(tm.getTree());
-                        closest_outside_log_posterior = logp;
-                    }
-                }
-            }
+            // if (log_posteriors_available && _save_credible_set) {
+            //     double logp = log_posteriors[i];
+            //     if (logp > empirical_hpd_cutoff) {
+            //         if (bhvdist > furthest_distance_inside_HPD_credible_set) {
+            //             furthest_tree_inside_HPD_credible_set.setTree(tm.getTree());
+            //             furthest_inside_log_posterior = logp;
+            //         }
+            //         if (bhvdist < empirical_hpd_lower) {
+            //             empirical_hpd_lower = bhvdist;
+            //         }
+            //         if (bhvdist > empirical_hpd_upper) {
+            //             empirical_hpd_upper = bhvdist;
+            //         }
+            //     }
+            //     else {
+            //         if (bhvdist < closest_distance_not_inside_HPD_credible_set) {
+            //             closest_tree_not_inside_HPD_credible_set.setTree(tm.getTree());
+            //             closest_outside_log_posterior = logp;
+            //         }
+            //     }
+            // }
             //outf << (i+1) << '\t' << setprecision(static_cast<int>(ndecimals)) << bhvdist << '\n';
         }
         variance /= (ntrees - 1);
 
         // Save the mean tree, variance, HPD interval, and radius
-        string nxsfn = _prefix + ".nex";
+        string nxsfn = _prefix + ".tre";
         ofstream mean_file_nexus(nxsfn);
         mean_file_nexus << "#nexus\n\n";
         mean_file_nexus << "begin trees;\n";
         mean_file_nexus << TreeManip::nexusTranslateCommand();
-        mean_file_nexus << "  tree meantree = " << mean_tree.makeNewick(9, false) << ";\n";
+        mean_file_nexus << "  tree meantree = [&U] " << mean_tree.makeNewick(9, false) << ";\n";
         mean_file_nexus << "end;\n";
         mean_file_nexus.close();
 
         string fn = _prefix + ".R";
         ofstream mean_file(fn);
         mean_file << "# " << mean_tree.makeNewick(9, true) << endl;
+        mean_file << boost::str(boost::format("# sample size = %d\n") % ntrees);
         mean_file << boost::str(boost::format("# variance = %.9f\n") % variance);
         mean_file << boost::str(boost::format("# tree length = %.9f\n") % mean_tree.calcTreeLength());
         mean_file << boost::str(boost::format("# iterations = %d\n") % number_of_iterations);
@@ -2303,53 +2435,56 @@ namespace op {
         double hpd_lower;
         double hpd_upper;
         double radius;
+
         // Calculate kernel density and use it to fill in hpd_lower, hpd_higher, and radius
-        rPlotDists(bhvdists, rscript, radius, hpd_lower, hpd_upper, 0.95);
+        rPlotDists(bhvdists, rscript, radius, hpd_lower, hpd_upper, _hpd_radius ? 100 : _radius_percent);
 
         mean_file << boost::str(boost::format("# q25 = %.9f\n") % _kde_q25);
         mean_file << boost::str(boost::format("# q75 = %.9f\n") % _kde_q75);
         mean_file << boost::str(boost::format("# IQR = %.9f\n") % (_kde_q75 - _kde_q25));
         mean_file << boost::str(boost::format("# KDE sigma = %.9f\n") % _kde_sigma);
         mean_file << boost::str(boost::format("# KDE bandwidth = %.9f\n") % _kde_bandwidth);
-        mean_file << boost::str(boost::format("# 95%% HPD lower = %.9f\n") % hpd_lower);
-        mean_file << boost::str(boost::format("# 95%% HPD upper = %.9f\n") % hpd_upper);
-        mean_file << boost::str(boost::format("# 95%% radius = %.9f\n") % radius);\
-        if (log_posteriors_available && _save_credible_set) {
-            mean_file << boost::str(boost::format("# smallest log posterior = %.9f\n") % min_log_posterior);
-            mean_file << boost::str(boost::format("# largest log posterior = %.9f\n") % max_log_posterior);
-            mean_file << boost::str(boost::format("# 95%% empirical HPD cutoff = %.9f\n") % empirical_hpd_cutoff);
-            mean_file << boost::str(boost::format("# 95%% empirical HPD lower = %.9f\n") % empirical_hpd_lower);
-            mean_file << boost::str(boost::format("# 95%% empirical HPD upper = %.9f\n") % empirical_hpd_upper);
-        }
+        mean_file << boost::str(boost::format("# %d%% HPD lower = %.9f\n") % _radius_percent % hpd_lower);
+        mean_file << boost::str(boost::format("# %d%% HPD upper = %.9f\n") % _radius_percent % hpd_upper);
+        mean_file << boost::str(boost::format("# %d%% radius = %.9f\n") % _radius_percent % radius);\
+        // if (log_posteriors_available && _save_credible_set) {
+        //     mean_file << boost::str(boost::format("# smallest log posterior = %.9f\n") % min_log_posterior);
+        //     mean_file << boost::str(boost::format("# largest log posterior = %.9f\n") % max_log_posterior);
+        //     mean_file << boost::str(boost::format("# %d%% empirical HPD cutoff = %.9f\n") % _radius_percent % empirical_hpd_cutoff);
+        //     mean_file << boost::str(boost::format("# %d%% empirical HPD lower = %.9f\n")  % _radius_percent % empirical_hpd_lower);
+        //     mean_file << boost::str(boost::format("# %d%% empirical HPD upper = %.9f\n")  % _radius_percent % empirical_hpd_upper);
+        // }
         mean_file << boost::str(boost::format("# smallest distance = %.9f\n") % smallest_distance);
         mean_file << boost::str(boost::format("# largest distance = %.9f\n") % largest_distance);
+        mean_file << "# The R code below creates a plot showing the kernel density for distance from mean\n";
+        mean_file << boost::str(boost::format("# tree and the %d%% highest probability density credible interval\n") % _radius_percent) << rscript;
         mean_file << "\n" << rscript << endl;
         mean_file.close();
 
-        if (log_posteriors_available && _save_credible_set) {
-            // Save furthest tree from mean that is nevertheless inside the 95% HPD credible set
-            string xfn = _prefix + "-extreme.tre";
-            ofstream xf(xfn);
-            xf << "#nexus\n\nbegin trees;\n";
-            xf << "  tree mean_tree = [&R] " << mean_tree.makeNewick(9, true) << ";\n";
-            xf << "  tree furthest_inside = [&R] [log-posterior = " << setprecision(9) << furthest_inside_log_posterior << "] " << furthest_tree_inside_HPD_credible_set.makeNewick(9, true) << ";\n";
-            xf << "  tree closest_outside = [&R] [log-posterior = " << setprecision(9) << closest_outside_log_posterior << "] " << closest_tree_not_inside_HPD_credible_set.makeNewick(9, true) << ";\n";
-            xf << "end;\n";
-            xf.close();
-
-            string hpdfn = _prefix + "-hpd-credible-set.tre";
-            ofstream hpdf(hpdfn);
-            hpdf << "#nexus\n\nbegin trees;\n";
-            for (unsigned i = 0; i < ntrees; i++) {
-                string newick = _tree_summary->getNewick(i);
-                double logp = log_posteriors[i];
-                if (logp > empirical_hpd_cutoff) {
-                    hpdf << "  tree t" << (i+1) << " = [&R] [log-posterior = " << setprecision(9) << logp << "] " << newick << ";\n";
-                }
-            }
-            hpdf << "end;\n";
-            hpdf.close();
-        }
+        // if (log_posteriors_available && _save_credible_set) {
+        //     // Save furthest tree from mean that is nevertheless inside the HPD credible set
+        //     string xfn = _prefix + "-extreme.tre";
+        //     ofstream xf(xfn);
+        //     xf << "#nexus\n\nbegin trees;\n";
+        //     xf << "  tree mean_tree = [&R] " << mean_tree.makeNewick(9, true) << ";\n";
+        //     xf << "  tree furthest_inside = [&R] [log-posterior = " << setprecision(9) << furthest_inside_log_posterior << "] " << furthest_tree_inside_HPD_credible_set.makeNewick(9, true) << ";\n";
+        //     xf << "  tree closest_outside = [&R] [log-posterior = " << setprecision(9) << closest_outside_log_posterior << "] " << closest_tree_not_inside_HPD_credible_set.makeNewick(9, true) << ";\n";
+        //     xf << "end;\n";
+        //     xf.close();
+        //
+        //     string hpdfn = _prefix + "-hpd-credible-set.tre";
+        //     ofstream hpdf(hpdfn);
+        //     hpdf << "#nexus\n\nbegin trees;\n";
+        //     for (unsigned i = 0; i < ntrees; i++) {
+        //         string newick = _tree_summary->getNewick(i);
+        //         double logp = log_posteriors[i];
+        //         if (logp > empirical_hpd_cutoff) {
+        //             hpdf << "  tree t" << (i+1) << " = [&R] [log-posterior = " << setprecision(9) << logp << "] " << newick << ";\n";
+        //         }
+        //     }
+        //     hpdf << "end;\n";
+        //     hpdf.close();
+        // }
 
         if (_noisy) {
             cout << boost::str(format("%d iterations required (of %d max. iterations):") % number_of_iterations % _frechet_k) << endl;
@@ -2363,29 +2498,127 @@ namespace op {
             cout << "Done." << endl;
     }
 
+   // inline void OP::assertFileExists(string fn) const {
+   //     // Example relative path
+   //     filesystem::path relativePath = "my_file.txt";
+
+   //     // Get the current working directory
+   //     filesystem::path currentPath = filesystem::current_path();
+
+   //     // Combine the current path and the relative path to get the absolute path
+   //     filesystem::path absolutePath = currentPath / relativePath;
+   // }
+
     inline void OP::readTrees() {
-        // Read in trees
+        // Create a master TreeSummary object
         _tree_summary = std::make_shared<TreeSummary>();
-        unsigned which_treefile = 0;
-        unsigned ntrees = 0;
-        unsigned ntrees_prev = 0;
-        for (const auto & fn : _tree_file_names) {
+
+        // Read in reference tree if specified
+        if (_refdist) {
             // Assume that the tree file is in Nexus format
-            _tree_summary->readTreefile(fn, _skip[which_treefile], _stride[which_treefile], _rooted[which_treefile], _scale_by[which_treefile]);
-            ntrees = _tree_summary->getNumTrees();
-            if (ntrees - ntrees_prev == 0) {
+            _tree_summary->readTreefile(_ref_tree_filename,
+                true,
+                _refskip,
+                1,
+                _refrooted,
+                _refscale,
+                1,
+                -1,
+                1);
+            if (!_tree_summary->isRefTree()) {
                 // Failed to read any trees, so the file may not be in Nexus format.
                 // Assume next that the file is in RevBayes format.
-                _tree_summary->readRevBayesTreefile(fn, _skip[which_treefile], _stride[which_treefile], _rooted[which_treefile], _scale_by[which_treefile]);
-                ntrees = _tree_summary->getNumTrees();
+                _tree_summary->readRevBayesTreefile(_ref_tree_filename,
+                    true,
+                    false,
+                    _radius_percent,
+                    _refskip,
+                    1,
+                    _refrooted,
+                    _refscale,
+                    -1,
+                    -1,
+                    1);
             }
-            ntrees_prev = ntrees;
-            ++which_treefile;
+
+            if (!_tree_summary->isRefTree()) {
+                // Could not obtain tree from the specified _ref_tree_filename
+                throw Xop("Could not obtain a tree from the specified reference tree file");
+            }
         }
 
-        if (ntrees < 2) {
-            // Either no trees were in the specified tree file, or the file was in neither Nexus nor RevBayes format
-            throw Xop("Must input at least 2 trees to compute tree distances");
+//        unsigned radpct = _radius_percent;
+//        if (_hpd_radius) {
+//            radpct = 100;
+//            shrinkToHPD();
+//        }
+
+        // Read in trees
+        unsigned which_treefile = 0;
+        for (const auto & fn : _tree_file_names) {
+            if (_hpd_radius) {
+                // Assume RevBayes tree file format because _hpd_radius requires log-posterior for each tree
+                TreeSummary ts;
+                ts.readRevBayesTreefile(fn,
+                    false,
+                    _hpd_radius,
+                    _radius_percent,
+                    _skip[which_treefile],
+                    _stride[which_treefile],
+                    _rooted[which_treefile],
+                    _scale_by[which_treefile],
+                    _keep[which_treefile],
+                    _subsample[which_treefile],
+                    _subseed[which_treefile]);
+                unsigned ts_ntrees = ts.getNumTrees();
+                if (ts_ntrees > 0)
+                    _tree_summary->absorbTreeSummary(ts);
+                else
+                    throw Xop(format("Number of trees saved from file \"%s\" was zero") % fn);
+                if (_save_trees) {
+                    string basefn = boost::filesystem::path(fn).filename().string();
+                    ts.saveTrees(str(format("%s-saved.tre") % _prefix));
+                }
+            }
+            else {
+                // Assume first that the tree file is in Nexus format
+                TreeSummary ts;
+                ts.readTreefile(fn,
+                    false,
+                    _skip[which_treefile],
+                    _stride[which_treefile],
+                    _rooted[which_treefile],
+                    _scale_by[which_treefile],
+                    _keep[which_treefile],
+                    _subsample[which_treefile],
+                    _subseed[which_treefile]);
+                unsigned ts_ntrees = ts.getNumTrees();
+                if (ts_ntrees == 0) {
+                    // Failed to read any trees, so the file may not be in Nexus format.
+                    // Assume next that the file is in RevBayes format.
+                    ts.readRevBayesTreefile(fn,
+                        false,
+                        false,
+                        _radius_percent,
+                        _skip[which_treefile],
+                        _stride[which_treefile],
+                        _rooted[which_treefile],
+                        _scale_by[which_treefile],
+                        _keep[which_treefile],
+                        _subsample[which_treefile],
+                        _subseed[which_treefile]);
+                    ts_ntrees = ts.getNumTrees();
+                }
+                if (ts_ntrees > 0)
+                    _tree_summary->absorbTreeSummary(ts);
+                else
+                    throw Xop(format("Number of trees saved from file \"%s\" was zero") % fn);
+                if (_save_trees) {
+                    string basefn = boost::filesystem::path(fn).filename().string();
+                    ts.saveTrees(str(format("%s-saved.tre") % _prefix));
+                }
+            }
+            ++which_treefile;
         }
 
         // If the tree file just read was in RevBayes format, append log_posteriors to a file
@@ -2400,7 +2633,7 @@ namespace op {
         }
 
         if (_noisy) {
-            cout << "\nRead " << ntrees << " trees from " << _tree_file_names.size() << " tree files." << endl;
+            cout << "\nRead " << _tree_summary->getNumTrees() << " trees from " << _tree_file_names.size() << " tree files." << endl;
         }
     }
 
@@ -2457,6 +2690,16 @@ namespace op {
             taxmapf << str(format("%12d %s\n") % (i+1) % TreeManip::_taxon_names[i]);
         }
         taxmapf.close();
+    }
+
+    inline void OP::shrinkToHPD() {
+        auto log_posteriors = _tree_summary->getLogPosteriors();
+        if (log_posteriors.empty()) {
+            throw Xop("Cannot compute HPD radius without log posteriors (the --hpdrad option should only be used with RevBayes tree files that record the log posterior for each tree)");
+        }
+
+        // Retain only trees inside the _radius_percent HPD credible set
+        _tree_summary->retainHPDCredibleSet(_radius_percent, log_posteriors);
     }
 
 #if defined(OLD_KF_CODE)

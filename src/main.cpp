@@ -30,6 +30,9 @@ using namespace std;
 #include <boost/math/special_functions/gamma.hpp>
 #include <boost/range/adaptor/reversed.hpp>
 
+#define BOOST_FILESYSTEM_NO_DEPRECATED
+#include <boost/filesystem.hpp>
+
 using namespace boost;
 
 #include "ncl/nxsmultiformat.h"
@@ -56,7 +59,8 @@ string  OP::_program_name        = "op";
 unsigned     OP::_major_version       = 1;
 //unsigned     OP::_minor_version       = 4; // fixes major bug related to nested common edges
 //unsigned     OP::_minor_version       = 5; // fixes bug resulting from polytomies in one of the two trees being compared
-unsigned     OP::_minor_version       = 6; // now saves conf file as a record of settings used and fixes bug in TreeManip::nexusTranslateCommand
+//unsigned     OP::_minor_version       = 6; // now saves conf file as a record of settings used and fixes bug in TreeManip::nexusTranslateCommand
+unsigned     OP::_minor_version       = 7;   // keep setting added; refdist now saves sorted distances as comments in a nexus-formatted tree file unless REFDIST_TREEFILE is #undef'd
 
 bool         OP::_silent              = false; // set to true only for unit tests
 const double Node::_smallest_edge_length = 1.0e-12;
