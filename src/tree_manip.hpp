@@ -11,6 +11,7 @@
 #include <utility>
 #include "tree.hpp"
 #include "xop.hpp"
+#include "lot.hpp"
 
 using namespace std;
 using namespace boost;
@@ -32,14 +33,16 @@ namespace op {
         double                      calcTreeLength() const;
         void                        scaleAllEdgeLengths(double scaler) const;
         void                        createTestTree();
+        unsigned                    randomStep(Lot & lot, double mu, double sigma);
 
+        string                      debugMakeNewick(unsigned precision, bool use_names) const;
         string                      makeNewick(unsigned precision, bool use_names) const;
         void                        buildFromNewick(const string &newick, bool rooted, bool allow_polytomies);
         void                        setLeafNames(const vector<string> & leafnames) const;
         void                        storeSplits(set<Split> & internal_splits, set<Split> & leaf_splits) const;
         void                        setEdgeLength(const Split & s, double edge_length) const;
         void                        rerootAt(int node_number) const;
-
+        void                        nniNodeSwap(Node * a, Node * b);
         void                        dropSplit(const Split & s) const;
         void                        addSplit(const Split & s) const;
         void                        debugCheckSplits() const;
@@ -136,6 +139,195 @@ namespace op {
         for (auto nd : _tree->_preorder) {
             nd->_edge_length *= scaler;
         }
+    }
+
+    inline unsigned TreeManip::randomStep(Lot & lot, double mu, double sigma) {
+        // Take a random step by adding a Normal(mu, sigma) variate to each edge
+        // Internal edges that drop below zero result in a random change in topology.
+        // Leaf edges that drop below zero are reflected back onto the positive real line.
+        // Note that sigma is the standard deviation (not the variance) of the normal variate.
+
+        // Choose random normal deviates used to modify edge lengths
+        // Note: decide new edge lengths first, adding them to vector v,
+        // then use v to make changes to the tree. This is because changes
+        // to the tree would disrupt the preorder sequence, making it very
+        // difficult to figure out which edge lengths still need to be
+        // modified.
+        typedef pair<double, Node *> edge_node_pair_t;
+        vector<edge_node_pair_t> v;
+        for (auto nd : _tree->_preorder) {
+            // skip internal node whose parent is NULL (that is the root node)
+            if (nd->_parent->_parent == nullptr)
+                continue;
+
+            if (nd->_left_child) {
+                // nd is an internal node
+                double edge_length = nd->_edge_length;
+                double normal_variate = mu + sigma*lot.normal();
+                double new_edge_length = edge_length + normal_variate;
+                v.emplace_back(new_edge_length, nd);
+            }
+            else {
+                // nd is a leaf node
+                double edge_length = nd->_edge_length;
+                double normal_variate = mu + sigma*lot.normal();
+                double new_edge_length = edge_length + normal_variate;
+                if (new_edge_length < Node::_smallest_edge_length) {
+                    // Case 1: v = new_edge_length > 0
+                    // ----|----------|--------------|--------------|------
+                    //     0          v           smallest    new_edge_length
+                    //                |<-----x------>|<-----x------>|
+                    // Case 2: v = new_edge_length < 0
+                    // ----|----------|--------------|-------------------------|
+                    //     v          0           smallest              new_edge_length
+                    //     |<-----------x----------->|<-----------x----------->|
+                    double v = new_edge_length;
+                    double smallest = Node::_smallest_edge_length;
+                    double x = smallest - v;
+                    new_edge_length = smallest + x;
+                    nd->_edge_length = new_edge_length;
+                }
+            }
+        }
+
+        // Update tree based on new edge lengths in v
+        unsigned cumulative_nni = 0;
+        for (auto & p : v) {
+            // Let x equal p.second. Because only non-root internal nodes were included in v, we know that
+            // x has two children (a is the left child of x and b is the right child of x), and because
+            // the sole descendant of the root is excluded, we also know that x has parent y. That is,
+            // one of the three configurations below pertains if the tree is binary:
+            //
+            //  a     b               a     b
+            //   \   /                 \   /
+            //    \ /                   \ /
+            //     x     d         d     x
+            //      \   /           \   /
+            //       \ /             \ /
+            //        y               y
+            //        |               |
+            //        |               |
+            //        c               c
+            //
+            bool same_orthant = (p.first >= 0.0);
+            if (same_orthant) {
+                p.second->_edge_length = p.first;
+                if (p.second->_edge_length < Node::_smallest_edge_length)
+                    p.second->_edge_length = Node::_smallest_edge_length;
+            }
+            else {
+                cumulative_nni++;
+
+                // Flip coin to decide whether a or b will be involved in the move
+                double u = lot.uniform();
+                bool a_travels_with_x = (u < 0.5);
+                bool x_is_left_child_of_y = (p.second->_parent->_left_child == p.second);
+
+                if (a_travels_with_x && x_is_left_child_of_y) {
+                    // |-starting-|     |--ending--|
+                    //
+                    //  a     b          a     d
+                    //  \\   /           \\   /
+                    //   \\ /             \\ /
+                    //     x     d          x     b
+                    //      \   /            \   /
+                    //       \ /    -->       \ /
+                    //        y                y
+                    //        |                |
+                    //        |                |
+                    //        c                c
+                    Node * x = p.second;
+                    Node * b = x->_left_child->_right_sib;
+                    Node * d = x->_right_sib;
+                    nniNodeSwap(b, d);
+                    x->_edge_length = -p.first;
+                    if (x->_edge_length < Node::_smallest_edge_length)
+                        x->_edge_length = Node::_smallest_edge_length;
+                }
+                else if (a_travels_with_x && !x_is_left_child_of_y) {
+                    // |-starting-|   |--ending--|
+                    //
+                    //     a     b       a     d
+                    //     \\   /        \\   /
+                    //      \\ /          \\ /
+                    //  d     x       b     x
+                    //   \   /         \   /
+                    //    \ /    -->    \ /
+                    //     y             y
+                    //     |             |
+                    //     |             |
+                    //     c             c
+                    Node * x = p.second;
+                    Node * y = x->_parent;
+                    Node * b = x->_left_child->_right_sib;
+                    Node * d = y->_left_child;
+
+                    // //temporary!
+                    // cerr << debugMakeNewick(5, false) << endl;
+
+                    nniNodeSwap(b, d);
+                    x->_edge_length = -p.first;
+                    if (x->_edge_length < Node::_smallest_edge_length)
+                        x->_edge_length = Node::_smallest_edge_length;
+                }
+                else if (!a_travels_with_x && x_is_left_child_of_y) {
+                    // |-starting-|     |--ending--|
+                    //
+                    //  a     b          d     b
+                    //   \   //           \   //
+                    //    \ //             \ //
+                    //     x     d          x     a
+                    //      \   /            \   /
+                    //       \ /    -->       \ /
+                    //        y                y
+                    //        |                |
+                    //        |                |
+                    //        c                c
+                    Node * x = p.second;
+                    Node * a = x->_left_child;
+                    Node * d = x->_right_sib;
+                    nniNodeSwap(a, d);
+                    x->_edge_length = -p.first;
+                    if (x->_edge_length < Node::_smallest_edge_length)
+                        x->_edge_length = Node::_smallest_edge_length;
+                }
+                else {
+                    // |-starting-|   |--ending--|
+                    //
+                    //     a     b       d     b
+                    //      \   //        \   //
+                    //       \ //          \ //
+                    //  d     x       a     x
+                    //   \   /         \   /
+                    //    \ /    -->    \ /
+                    //     y             y
+                    //     |             |
+                    //     |             |
+                    //     c             c
+                    Node * x = p.second;
+                    Node * y = x->_parent;
+                    Node * a = x->_left_child;
+                    Node * d = y->_left_child;
+
+                    // //temporary!
+                    // Node * b = a->_right_sib;
+                    // Node * c = y->_parent;
+                    // x->describeNode("x");
+                    // y->describeNode("y");
+                    // a->describeNode("a");
+                    // b->describeNode("b");
+                    // c->describeNode("c");
+                    // d->describeNode("d");
+                    // cerr << makeNewick(5,false) << endl;
+
+                    nniNodeSwap(a, d);
+                    x->_edge_length = -p.first;
+                    if (x->_edge_length < Node::_smallest_edge_length)
+                        x->_edge_length = Node::_smallest_edge_length;
+                }
+            }
+        }
+        return cumulative_nni;
     }
 
     inline void TreeManip::createTestTree() {
@@ -280,6 +472,67 @@ namespace op {
                     if (popped && popped->_right_sib) {
                         node_stack.pop();
                         newick += str(format(internal_node_format) % popped->_edge_length);
+                        newick += ",";
+                    }
+                }
+            }
+        }
+
+        return newick;
+    }
+
+    inline string TreeManip::debugMakeNewick(unsigned precision, bool use_names) const {
+        if (use_names && _taxon_names.empty()) {
+            throw Xop("Cannot use taxon names in makeNewick when no taxon names have been saved");
+        }
+        string newick;
+        const format tip_node_format( str(format("%%d[&index=%%d]:%%.%df") % precision) );
+        const format tip_node_format_using_names( str(format("%%s[&index=%%d]:%%.%df") % precision) );
+        const format internal_node_format( str(format(")[&index=%%d]:%%.%df") % precision) );
+        stack<Node *> node_stack;
+
+        Node * root_tip = (_tree->_is_rooted ? nullptr : _tree->_root);
+        for (auto nd : _tree->_preorder) {
+            if (nd->_left_child) {
+                newick += "(";
+                node_stack.push(nd);
+                if (root_tip) {
+                    if (use_names) {
+                        string with_underscores = std::regex_replace(_taxon_names[root_tip->_number], std::regex(" "), "_");
+                        newick += str(format(tip_node_format_using_names) % with_underscores % nd->_number % nd->_edge_length);
+                    }
+                    else {
+                        newick += str(format(tip_node_format) % (root_tip->_number + 1) % nd->_number % nd->_edge_length);
+                    }
+                    newick += ",";
+                    root_tip = nullptr;
+                }
+            }
+            else {
+                if (use_names) {
+                    string with_underscores = std::regex_replace(_taxon_names[nd->_number], std::regex(" "), "_");
+                    newick += str(format(tip_node_format_using_names) % with_underscores % nd->_number % nd->_edge_length);
+                }
+                else
+                    newick += str(format(tip_node_format) % (nd->_number + 1) % nd->_number % nd->_edge_length);
+                if (nd->_right_sib)
+                    newick += ",";
+                else {
+                    Node * popped = (node_stack.empty() ? nullptr : node_stack.top());
+                    while (popped && !popped->_right_sib) {
+                        node_stack.pop();
+                        if (node_stack.empty()) {
+                            newick += ")";
+                            popped = nullptr;
+                        }
+                        else {
+                            newick += str(format(internal_node_format) % popped->_number % popped->_edge_length);
+                            popped = node_stack.top();
+                        }
+                    }
+                    if (popped && popped->_right_sib) {
+                        node_stack.pop();
+                        newick += str(format(internal_node_format) % popped->_number % popped->_edge_length);
                         newick += ",";
                     }
                 }
@@ -1207,4 +1460,162 @@ namespace op {
         return renumbered_newick;
     }
 
+    inline void TreeManip::nniNodeSwap(Node * a, Node * b) {
+        // Doesn't assume binary tree
+        Node *x = a->_parent;
+        assert(x);
+
+        Node * y = b->_parent;
+        assert(y);
+        assert(x->_parent == y);
+
+        bool a_is_left_child = (a == x->_left_child);
+        bool x_is_left_child = (x == y->_left_child);
+
+        if (a_is_left_child && x_is_left_child) {
+            // Case 1:
+            //     a                        b
+            //      \   /                    \   /
+            //       \ /                      \ /
+            //        x     b            a     x
+            //         \   /              \   /
+            //          \ /      ==>       \ /
+            //           y                  y
+            //           |                  |
+            //           |                  |
+            //           |                  |
+
+            // Detach a from tree
+            x->_left_child = a->_right_sib;
+            a->_parent = nullptr;
+            a->_right_sib = nullptr;
+
+            // Detach b from tree
+            Node * ychild = y->_left_child;
+            while (ychild && ychild->_right_sib != b) {
+                ychild = ychild->_right_sib;
+            }
+            assert(ychild->_right_sib == b);
+            ychild->_right_sib = b->_right_sib;
+            b->_parent = nullptr;
+        }
+        else if (a_is_left_child && !x_is_left_child) {
+            // Case 2:
+            //         a                  b
+            //          \   /              \   /
+            //           \ /                \ /
+            //      b     x            a     x
+            //       \   /              \   /
+            //        \ /      ==>       \ /
+            //         y                  y
+            //         |                  |
+            //         |                  |
+            //         |                  |
+
+            // Detach a from tree
+            x->_left_child = a->_right_sib;
+            a->_parent = nullptr;
+            a->_right_sib = nullptr;
+
+            // Detach b from tree
+            if (b == y->_left_child) {
+                y->_left_child = b->_right_sib;
+                b->_parent = nullptr;
+            }
+            else {
+                Node * ychild = y->_left_child;
+                while (ychild && ychild->_right_sib != b) {
+                    ychild = ychild->_right_sib;
+                }
+                assert(ychild->_right_sib == b);
+                ychild->_right_sib = b->_right_sib;
+                b->_parent = nullptr;
+            }
+        }
+        else if (!a_is_left_child && x_is_left_child) {
+            // Case 3
+            //           a                  b
+            //      \   /                    \   /
+            //       \ /                      \ /
+            //        x     b            a     x
+            //         \   /              \   /
+            //          \ /      ==>       \ /
+            //           y                  y
+            //           |                  |
+            //           |                  |
+            //           |                  |
+
+            // Detach a from tree
+            Node * xchild = x->_left_child;
+            while (xchild && xchild->_right_sib != a) {
+                xchild = xchild->_right_sib;
+            }
+            assert(xchild->_right_sib == a);
+            xchild->_right_sib = a->_right_sib;
+            a->_parent = nullptr;
+
+            // Detach b from tree
+            Node * ychild = y->_left_child;
+            while (ychild && ychild->_right_sib != b) {
+                ychild = ychild->_right_sib;
+            }
+            assert(ychild->_right_sib == b);
+            ychild->_right_sib = b->_right_sib;
+            b->_parent = nullptr;
+
+        }
+        else if (!a_is_left_child && !x_is_left_child) {
+            // Case 4:
+            //               a            b
+            //          \   /              \   /
+            //           \ /                \ /
+            //      b     x            a     x
+            //       \   /              \   /
+            //        \ /      ==>       \ /
+            //         y                  y
+            //         |                  |
+            //         |                  |
+            //         |                  |
+
+            Node * xchild = x->_left_child;
+            while (xchild && xchild->_right_sib != a) {
+                xchild = xchild->_right_sib;
+            }
+            assert(xchild->_right_sib == a);
+            xchild->_right_sib = a->_right_sib;
+            a->_parent = nullptr;
+
+            // Detach b from tree
+            if (b == y->_left_child) {
+                y->_left_child = b->_right_sib;
+                b->_parent = nullptr;
+            }
+            else {
+                Node * ychild = y->_left_child;
+                while (ychild && ychild->_right_sib != b) {
+                    ychild = ychild->_right_sib;
+                }
+                assert(ychild->_right_sib == b);
+                ychild->_right_sib = b->_right_sib;
+                b->_parent = nullptr;
+            }
+        }
+        else {
+            throw Xop(format("Unexpected case in TreeManip::nniNodeSwap()"));
+        }
+
+        // Reattach a to y
+        Node * ylchild = y->_left_child;
+        a->_right_sib = ylchild;
+        a->_parent = y;
+        y->_left_child = a;
+
+        // Reattach b to x
+        Node * xlchild = x->_left_child;
+        b->_right_sib = xlchild;
+        b->_parent = x;
+        x->_left_child = b;
+
+        refreshPreorder();
+    }
 }

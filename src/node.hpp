@@ -28,6 +28,8 @@ namespace op
                     double              getEdgeLength() const {return _edge_length;}
                     void                setEdgeLength(double v);
 
+                    void                describeNode(const string & title) const;
+
             static const double _smallest_edge_length;
 
             typedef vector<Node>    Vector;
@@ -68,6 +70,22 @@ namespace op
 
     inline void Node::setEdgeLength(double v) {
         _edge_length = (v < _smallest_edge_length ? _smallest_edge_length : v);
+    }
+
+    inline void Node::describeNode(const string & title) const {
+        cerr << title << ": number = " << _number << ", name = \"" << _name << "\"" << endl;
+        if (_parent)
+            cerr << "  _parent: number = " << _parent->_number << ", name = \"" << _parent->_name << "\"" << endl;
+        else
+            cerr << "  _parent: NULL" << endl;
+        if (_left_child)
+            cerr << "  _left_child: number = " << _left_child->_number << ", name = \"" << _left_child->_name << "\"" << endl;
+        else
+            cerr << "  _left_child: NULL" << endl;
+        if (_right_sib)
+            cerr << "  _right_sib: number = " << _right_sib->_number << ", name = \"" << _right_sib->_name << "\"" << endl;
+        else
+            cerr << "  _right_sib: NULL" << endl;
     }
 
 }

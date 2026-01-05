@@ -417,45 +417,17 @@ namespace op {
         log_posteriors.insert(log_posteriors.end(), make_move_iterator(_log_posteriors.begin()), make_move_iterator(_log_posteriors.end()));
         _log_posteriors.erase(_log_posteriors.begin(), _log_posteriors.end());
 
+        // Move _is_rooted to a new home
         vector<bool> is_rooted;
         is_rooted.insert(is_rooted.end(), make_move_iterator(_is_rooted.begin()), make_move_iterator(_is_rooted.end()));
         _is_rooted.erase(_is_rooted.begin(), _is_rooted.end());
 
-        //temporary!
-        if (true) {
-            // Randomly sample subsample trees from tmp_newicks
-            ofstream tmpf(str(format("selection-%d.txt") % rnseed));
+        for (unsigned i = 0; i < sample_size; ++i) {
+            unsigned j = lot.randint(0, newicks.size()-1);
 
-            for (unsigned i = 0; i < sample_size; ++i) {
-                unsigned j = lot.randint(0, newicks.size()-1);
-
-                //temporary!
-                tmpf << j << "\n";
-
-                _newicks.push_back(newicks[j]);
-                _log_posteriors.push_back(log_posteriors[j]);
-                _is_rooted.push_back(is_rooted[j]);
-            }
-
-            //temporary!
-            tmpf.close();
-        }
-        else {
-            // Create a vector of (uniform-random-variate, index) pairs for all included trees
-            vector<pair<double,unsigned> > indices(ntrees);
-            for (unsigned i = 0; i < ntrees; ++i) {
-                indices[i] = make_pair(lot.uniform(), i);
-            }
-
-            // Sort the vector to randomize the indices
-            sort(indices.begin(), indices.end());
-
-            for (unsigned i = 0; i < sample_size; ++i) {
-                unsigned j = indices[i].second;
-                _newicks.emplace_back(newicks[j]);
-                _log_posteriors.emplace_back(log_posteriors[j]);
-                _is_rooted.push_back(is_rooted[j]);
-            }
+            _newicks.emplace_back(newicks[j]);
+            _log_posteriors.push_back(log_posteriors[j]);
+            _is_rooted.push_back(is_rooted[j]);
         }
     }
 

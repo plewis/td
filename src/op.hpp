@@ -30,6 +30,7 @@ namespace op {
         void calcDistanceToReference() const;
         void calcFrechetMean();
         void calcPairwise() const;
+        inline void randomWalk() const;
         void outputVersionAndSettings() const;
         unsigned buildThreadSchedule();
 
@@ -113,6 +114,7 @@ namespace op {
         string                  _prefix;
         bool                    _pairwise;
         bool                    _snapshot;
+        bool                    _random_walk;
         bool                    _gtp;
         bool                    _refdist;
         bool                    _frechet_mean;
@@ -128,11 +130,14 @@ namespace op {
         vector<unsigned>        _subseed;
         vector<bool>            _rooted;
         vector<string>          _tree_file_names;
+        unsigned                _nsteps;
+        double                  _step_mu;
+        double                  _step_sigma;
         string                  _ref_tree_filename;
         unsigned                _refskip;
         bool                    _refrooted;
         double                  _refscale;
-        double                  _lambda;
+        vector<double>          _lambda;
         vector<double>          _scale_by;
         TreeSummary::SharedPtr  _tree_summary;
 
@@ -168,6 +173,7 @@ namespace op {
         _prefix("outfile"),
         _pairwise(false),
         _snapshot(false),
+        _random_walk(false),
         _gtp(false),
         _refdist(false),
         _frechet_mean(false),
@@ -175,12 +181,14 @@ namespace op {
         _save_trees(false),
         _nthreads(1),
         _precision(9),
+        _nsteps(0),
+        _step_mu(-0.05),
+        _step_sigma(0.05),
         _random_number_seed(1),
         _ref_tree_filename(""),
         _refskip(0),
         _refrooted(false),
         _refscale(1.0),
-        _lambda(0.5),
         _tree_summary(nullptr),
         _frechet_epsilon(0.00001),
         _frechet_n(10),
@@ -222,7 +230,7 @@ namespace op {
 
         cout << str(format("%s version %d.%d") % OP::_program_name % OP::_major_version % OP::_minor_version) << endl;
 
-        filesystem::path currentPath = filesystem::current_path();
+        boost::filesystem::path currentPath = boost::filesystem::current_path();
         cerr << "Current working directory: " << currentPath << endl;
 
         string fn = _prefix + "-op.conf";
@@ -243,7 +251,12 @@ namespace op {
             outf << "savetrees = yes\n";
         }
         outf << str(format("seed = %d\n") % _random_number_seed);
-        if (_pairwise) {
+        if (_random_walk) {
+            outf << str(format("nsteps = %d\n") % _nsteps);
+            outf << str(format("stepmu = %.9f\n") % _step_mu);
+            outf << str(format("stepsigma = %.9f\n") % _step_sigma);
+        }
+        else if (_pairwise) {
             outf << "pairwise = yes\n";
         }
         else if (_refdist) {
@@ -266,7 +279,9 @@ namespace op {
         }
         else {
             assert(_snapshot);
-            outf << str(format("lambda = %.9f\n") % _lambda);
+            for (auto & l : _lambda) {
+                outf << str(format("lambda = %.9f\n") % l);
+            }
         }
         for (unsigned i = 0; i < _tree_file_names.size(); ++i) {
             outf << "treefile = " << _tree_file_names[i] << endl;
@@ -302,6 +317,9 @@ namespace op {
             ("precision", program_options::value(&_precision)->default_value(9), "number of digits precision to use in outputting distances (default: 9)")
             ("prefix", program_options::value(&_prefix), "filename prefix for output file name (default: 'outfile')")
             ("lambda", program_options::value(&_lambda), "specify a value in [0,1] to calculate tree at that point (assumes starting tree is first tree and ending tree is the second tree in the treefile)")
+            ("nsteps", program_options::value(&_nsteps), "specifies number of steps to take in random walk")
+            ("stepmu", program_options::value(&_step_mu), "specifies mean of normal variates used in random walk")
+            ("stepsigma", program_options::value(&_step_sigma), "specifies standard deviation of normal variates used in random walk")
             ("pairwise", program_options::bool_switch(&_pairwise),"calculates pairwise distances (default: pairwise distances not calculated)")
             //("refdist", program_options::bool_switch(&_refdist),"calculates distance of the first tree to all other trees (default: distances not calculated)")
             ("frechetmean", program_options::bool_switch(&_frechet_mean),"calculate Frechet mean tree and variance (default: mean and variance not calculated)")
@@ -357,26 +375,51 @@ namespace op {
         }
 #endif
 
-        // If the user failed to specify --treefile on the command line, bail out because a treefile is needed for
-        // anything except help and version
-        if (vm.count("treefile") == 0) {
-            cout << "You must specify a treefile if doing anything except --help or --version" << endl;
-            exit(1);
-        }
-
         // If the user specified --prefix on the command line, set _prefix
         if (vm.count("prefix") > 0) {
             _prefix = vm["prefix"].as<string>();
+        }
+
+        // If the user specified --reftree on the command line, set _refdist to true
+        if (vm.count("reftree") > 0) {
+            // These will be reversed if nsteps > 0
+            _refdist = true;
+            _random_walk = false;
+        }
+
+        // If the user specified --nsteps on the command line, set _random_walk to true
+        // and sanity-check the value of nsteps supplied
+        if (vm.count("nsteps") > 0) {
+            if (_nsteps > 0 && _refdist) {
+                _random_walk = true;
+                _refdist = false;
+                if (_nsteps > 1000000) {
+                    throw Xop(format("nsteps should be less than 1 million, but you specified %d") % _nsteps);
+                }
+                if (_step_sigma <= 0.0) {
+                    throw Xop(format("stepsigma should be greater than zero, but you specified %g") % _step_sigma);
+                }
+            }
+        }
+
+        // If the user failed to specify --treefile on the command line, bail out because a treefile is needed for
+        // anything except help and version
+        if (vm.count("treefile") == 0 && !_random_walk) {
+            cout << "You must specify a treefile if doing anything except --help, --version, or a random walk" << endl;
+            exit(1);
         }
 
         // If the user specified --lambda on the command line, set _snapshot to true
         // and sanity-check the value of lambda supplied
         if (vm.count("lambda") > 0) {
             _snapshot = true;
-            if (_lambda < 0.0) {
-                throw Xop("Lambda must be greater than or equal to 0.0");
-            } else if (_lambda > 1.0) {
-                throw Xop("Lambda must be less than or equal to 1.0");
+            sort(_lambda.begin(), _lambda.end());
+            for (auto & l : _lambda) {
+                if (l < 0.0) {
+                    throw Xop(format("Lambda must be greater than or equal to 0.0, but you specified %g") % l);
+                } else if (l > 1.0) {
+                    throw Xop(format("Lambda must be less than or equal to 1.0, but you specified %g") % l);
+                }
             }
         }
 
@@ -390,20 +433,16 @@ namespace op {
             _save_trees = true;
         }
 
-        // If the user specified --reftree on the command line, set _refdist to true
-        if (vm.count("reftree") > 0) {
-            _refdist = true;
-        }
-
         if (_nthreads > 1)
             buildThreadSchedule();
 
         // Sanity check
-        bool ok = ( _pairwise && !_frechet_mean && !_refdist && !_snapshot && !_gtp);    // only pairwise chosen
-        ok     |= (!_pairwise &&  _frechet_mean && !_refdist && !_snapshot && !_gtp);    // only frechet mean chosen
-        ok     |= (!_pairwise && !_frechet_mean &&  _refdist && !_snapshot && !_gtp);    // only refdist chosen
-        ok     |= (!_pairwise && !_frechet_mean && !_refdist &&  _snapshot && !_gtp);    // only snapshot chosen
-        ok     |= (!_pairwise && !_frechet_mean && !_refdist && !_snapshot &&  _gtp);    // only gtp chosen
+        bool ok = ( _pairwise && !_frechet_mean && !_refdist && !_snapshot && !_gtp && !_random_walk);    // only pairwise chosen
+        ok     |= (!_pairwise &&  _frechet_mean && !_refdist && !_snapshot && !_gtp && !_random_walk);    // only frechet mean chosen
+        ok     |= (!_pairwise && !_frechet_mean &&  _refdist && !_snapshot && !_gtp && !_random_walk);    // only refdist chosen
+        ok     |= (!_pairwise && !_frechet_mean && !_refdist &&  _snapshot && !_gtp && !_random_walk);    // only snapshot chosen
+        ok     |= (!_pairwise && !_frechet_mean && !_refdist && !_snapshot &&  _gtp && !_random_walk);    // only gtp chosen
+        ok     |= (!_pairwise && !_frechet_mean && !_refdist && !_snapshot && !_gtp &&  _random_walk);    // only random walk chosen
 
         if (!ok) {
             cerr << "Sorry, you can only do one of these things during a single run: " << endl;
@@ -411,69 +450,73 @@ namespace op {
             cerr << "(2) calculate distance from a reference tree to all other trees (refdist is yes if reftree is specified);" << endl;
             cerr << "(3) calculate frechet mean and variance (frechet); or" << endl;
             cerr << "(4) move along path a specified distance (lambda)" << endl;
-            cerr << "(5) save trees for use with Owen & Provan GTP software" << endl;
+            cerr << "(5) carry out random walk of length nsteps" << endl;
+            cerr << "(6) save trees for use with Owen & Provan GTP software" << endl;
             cerr << "You specified: " << endl;
             cerr << "  pairwise    = " << (_pairwise ? "yes" : "no") << endl;
             cerr << "  frechetmean = " << (_frechet_mean ? "yes" : "no") << endl;
             cerr << "  refdist     = " << (_refdist ? "yes" : "no") << endl;
             cerr << "  lambda      = " << (_snapshot ? "yes" : "no") << endl;
+            cerr << "  nsteps > 0  = " << (_random_walk ? "yes" : "no")  << endl;
             cerr << "  saveforgtp  = " << (_gtp ? "yes" : "no") << endl;
             throw Xop("Program aborted.");
         }
 
-        if (_skip.empty()) {
-            // no trees are skipped by default
-            _skip.resize(_tree_file_names.size(), 0);
-        }
-        else if (_skip.size() != _tree_file_names.size()) {
-            throw Xop("If specified for any treefile, a skip setting must be provided for every treefile");
-        }
+        if (!_random_walk) {
+            if (_skip.empty()) {
+                // no trees are skipped by default
+                _skip.resize(_tree_file_names.size(), 0);
+            }
+            else if (_skip.size() != _tree_file_names.size()) {
+                throw Xop("If specified for any treefile, a skip setting must be provided for every treefile");
+            }
 
-        if (_stride.empty()) {
-            // stride is 1 by default
-            _stride.resize(_tree_file_names.size(), 1);
-        }
-        else if (_stride.size() != _tree_file_names.size()) {
-            throw Xop("If specified for any treefile, a stride setting must be provided for every treefile");
-        }
+            if (_stride.empty()) {
+                // stride is 1 by default
+                _stride.resize(_tree_file_names.size(), 1);
+            }
+            else if (_stride.size() != _tree_file_names.size()) {
+                throw Xop("If specified for any treefile, a stride setting must be provided for every treefile");
+            }
 
-        if (_keep.empty()) {
-            // keep is -1 by default, which results in saving every tree
-            _keep.resize(_tree_file_names.size(), -1);
-        }
-        else if (_keep.size() != _tree_file_names.size()) {
-            throw Xop("If specified for any treefile, a keep setting must be provided for every treefile");
-        }
+            if (_keep.empty()) {
+                // keep is -1 by default, which results in saving every tree
+                _keep.resize(_tree_file_names.size(), -1);
+            }
+            else if (_keep.size() != _tree_file_names.size()) {
+                throw Xop("If specified for any treefile, a keep setting must be provided for every treefile");
+            }
 
-        if (_subsample.empty()) {
-            // subsample is -1 by default, which results in saving every tree (i.e. no subsampling)
-            _subsample.resize(_tree_file_names.size(), -1);
-        }
-        else if (_subsample.size() != _tree_file_names.size()) {
-            throw Xop("If specified for any treefile, a subsample setting must be provided for every treefile");
-        }
+            if (_subsample.empty()) {
+                // subsample is -1 by default, which results in saving every tree (i.e. no subsampling)
+                _subsample.resize(_tree_file_names.size(), -1);
+            }
+            else if (_subsample.size() != _tree_file_names.size()) {
+                throw Xop("If specified for any treefile, a subsample setting must be provided for every treefile");
+            }
 
-        if (_subseed.empty()) {
-            // subseed is 1 by default
-            _subseed.resize(_tree_file_names.size(), 1);
-        }
-        else if (_subseed.size() != _tree_file_names.size()) {
-            throw Xop("If specified for any treefile, a subseed setting must be provided for every treefile");
-        }
+            if (_subseed.empty()) {
+                // subseed is 1 by default
+                _subseed.resize(_tree_file_names.size(), 1);
+            }
+            else if (_subseed.size() != _tree_file_names.size()) {
+                throw Xop("If specified for any treefile, a subseed setting must be provided for every treefile");
+            }
 
-        if (_rooted.empty()) {
-            // trees are assumed to be unrooted by default
-            _rooted.resize(_tree_file_names.size(), false);
-        }
-        else if (_rooted.size() != _tree_file_names.size()) {
-            throw Xop("If specified for any treefile, rooted setting must be provided for every treefile");
-        }
+            if (_rooted.empty()) {
+                // trees are assumed to be unrooted by default
+                _rooted.resize(_tree_file_names.size(), false);
+            }
+            else if (_rooted.size() != _tree_file_names.size()) {
+                throw Xop("If specified for any treefile, rooted setting must be provided for every treefile");
+            }
 
-        if (_scale_by.empty()) {
-            _scale_by.resize(_tree_file_names.size(), 1.0);
-        }
-        else if (_scale_by.size() != _tree_file_names.size()) {
-            throw Xop("If specified, a scale setting must be provided for every treefile");
+            if (_scale_by.empty()) {
+                _scale_by.resize(_tree_file_names.size(), 1.0);
+            }
+            else if (_scale_by.size() != _tree_file_names.size()) {
+                throw Xop("If specified, a scale setting must be provided for every treefile");
+            }
         }
     }
 
@@ -2247,7 +2290,94 @@ namespace op {
             cout << "Done." << endl;
     }
 
-#if defined(REFDIST_TREEFILE)
+    inline void OP::randomWalk() const {
+        // Carry out random walk starting from reference tree and walking for _nsteps steps
+        // Each step involves adding a normal variate (mean = _step_mu, sd = _step_sigma)
+        // to each internal edge length. If any edge length becomes negative, choose randomly
+        // among alternative orthants.
+        if (_noisy)
+            cout << "Conducting random walk " << _nsteps << " long starting from reference tree" << endl;
+
+        // Create a pseudorandom number generator
+        Lot lot;
+        lot.setSeed(_random_number_seed);
+
+        // Build starting tree
+        TreeManip starttm;
+        buildRefTree(starttm);
+
+        // Build end tree
+        TreeManip endtm;
+        buildRefTree(endtm);
+
+        // Create vectors that must be provided to calcBHVDistance function
+        vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+        vector<Split::treeid_pair_t> ABpairs;
+        vector<Split::split_pair_t> commonPairs;
+
+        // Create vector to store trees along path
+        // tuple members: bhvdist, nNNIs, tree index, is rooted, newick
+        vector< std::tuple<double, unsigned, unsigned, bool, string> > tvect;
+
+        // Add starting tree to tvect
+        string newick = endtm.makeNewick(9, true);
+        tvect.emplace_back(0.0, 0, 0, starttm.getIsRooted(), newick);
+
+        // Conduct random walk
+        unsigned tree_index = 1;
+        for (unsigned step = 0; step < _nsteps; ++step) {
+            // //temporary!
+            // cerr << endtm.makeNewick(5, false) << endl;
+
+            // Take a random step
+            unsigned nNNIs = endtm.randomStep(lot, _step_mu, _step_sigma);
+
+            // Calculate BHV distance from start tree to end tree
+            in_pairs.clear();
+            ABpairs.clear();
+            commonPairs.clear();
+            double bhvdist = calcBHVDistance(starttm, endtm, in_pairs, ABpairs, commonPairs);
+
+            // Get newick tree description of end tree
+            newick = endtm.makeNewick(9, true);
+
+            // Add end tree to tvect
+            tvect.emplace_back(bhvdist, nNNIs, tree_index++, endtm.getIsRooted(), newick);
+        }
+
+        // Write trees to a file with BHV distance inserted as a nexus comment for each tree
+        string fn = _prefix + ".tre";
+        ofstream outf(fn);
+        outf << "#nexus\n\n";
+        outf << "begin trees;\n";
+        for (const auto & t : tvect) {
+            double dist         = get<0>(t);
+            unsigned nNNIs      = get<1>(t);
+            unsigned tree_index = get<2>(t);
+            bool is_rooted      = get<3>(t);
+            string newick       = get<4>(t);
+            outf << "  tree t" << tree_index << " [bhvdist = " << setprecision(9) << dist << ", nNNIs = " << nNNIs << "] = " << (is_rooted ? "[&R] " : "[&U] ") << newick << ";\n";
+        }
+        outf << "end;" << endl;
+        outf.close();
+
+        // Create R file that plots BHV distance through time
+        string Rfn = _prefix + ".R";
+        ofstream Rf(Rfn);
+        Rf << "cwd = system('cd \"$( dirname \"$0\" )\" && pwd', intern = TRUE)\n";
+        Rf << "setwd(cwd)\n";
+        Rf << "pdf(\"bhv_along_path.pdf\")\n";
+        vector<string> bhv_str_vect;
+        for (const auto & t : tvect) {
+            double dist = get<0>(t);
+            bhv_str_vect.push_back(str(format("%g") % dist));
+        }
+        Rf << str(format("bhvdist <- c(%s)\n") % boost::join(bhv_str_vect, ", "));
+        Rf << "plot(bhvdist, type=\"l\", lwd=2, col=\"navy\", xlab=\"Step\", ylab=\"BHV distance\", main=\"BHV distance through time\")\n";
+        Rf << "dev.off()\n";
+        Rf.close();
+    }
+
     inline void OP::calcDistanceToReference() const {
         string fn = _prefix + ".tre";
         if (_noisy)
@@ -2268,21 +2398,26 @@ namespace op {
             string newick = endtm.makeNewick(9, true);
             tvect.emplace_back(bhvdist, i, endtm.getIsRooted(), newick);
         }
+
+        // Sort trees from lowest to highest BHV distance
         sort(tvect.begin(), tvect.end());
+
+        // Write trees to a file with BHV distance inserted as a nexus comment for each tree
         ofstream outf(fn);
         outf << "#nexus\n\n";
         outf << "begin trees;\n";
         for (const auto & t : tvect) {
-            double dist    = get<0>(t);
-            unsigned i     = get<1>(t);
-            bool is_rooted = get<2>(t);
-            string newick  = get<3>(t);
-            outf << "  tree t" << i << " [bhvdist = " << setprecision(9) << dist << "] = " << (is_rooted ? "[&R] " : "[&U] ") << newick << ";\n";
+            double dist         = get<0>(t);
+            unsigned tree_index = get<1>(t);
+            bool is_rooted      = get<2>(t);
+            string newick    = get<3>(t);
+            outf << "  tree t" << tree_index << " [bhvdist = " << setprecision(9) << dist << "] = " << (is_rooted ? "[&R] " : "[&U] ") << newick << ";\n";
         }
         outf << "end;" << endl;
         outf.close();
     }
-#else
+
+#if 0
     inline void OP::calcDistanceToReference() const {
         string fn = _prefix + ".txt";
         if (_noisy)
@@ -2514,7 +2649,7 @@ namespace op {
         _tree_summary = std::make_shared<TreeSummary>();
 
         // Read in reference tree if specified
-        if (_refdist) {
+        if (_refdist || _random_walk) {
             // Assume that the tree file is in Nexus format
             _tree_summary->readTreefile(_ref_tree_filename,
                 true,
@@ -2639,32 +2774,36 @@ namespace op {
 
     inline void OP::moveAlongPath() {
         int ndecimals = static_cast<int>(_precision);
-        if (_noisy)
-            cout << "Computing tree at lambda = " << setprecision(ndecimals) << _lambda << "..." << endl;
-
         if (_tree_summary->getNumTrees() < 2) {
             throw Xop("Must input at least 2 trees to compute tree at a particular lambda value");
         }
 
-        TreeManip starttm;
-        buildTree(0, starttm);
-
-        TreeManip endtm;
-        buildTree(1, endtm);
-
-        displaceTreeAlongGeodesic(starttm, endtm, _lambda);
-
         // Save the tree at _lambda from the starting tree toward the ending tree
-        string fn = boost::str(format("tree-at-lambda-%.5f.txt") % _lambda);
+        string fn = boost::str(format("%s-lambda.tre") % _prefix);
         ofstream middle_file(fn);
-        middle_file << starttm.makeNewick(9, true) << endl;
-        middle_file << "# lambda = " << setprecision(ndecimals) << _lambda << endl;
-        middle_file.close();
+        middle_file << "#nexus\n\n";
+        middle_file << "begin trees;\n";
+        unsigned t = 0;
+        for (auto & l : _lambda) {
+            if (_noisy)
+                cout << "Computing tree at lambda = " << setprecision(ndecimals) << l << "..." << endl;
 
-        if (_noisy) {
-            cout << "Tree at lambda = " << setprecision(ndecimals) << _lambda << ":" << endl;
-            cout << starttm.makeNewick(9, true) << endl;
+            TreeManip starttm;
+            buildTree(0, starttm);
+
+            TreeManip endtm;
+            buildTree(1, endtm);
+
+            displaceTreeAlongGeodesic(starttm, endtm, l);
+
+            middle_file << str(format("  tree t%d [lambda = %.9f] = %s;\n") % (t++) % l % starttm.makeNewick(9, true));
+            if (_noisy) {
+                cout << "Tree at lambda = " << setprecision(ndecimals) << l << ":" << endl;
+                cout << starttm.makeNewick(9, true) << endl;
+            }
         }
+        middle_file << "end;\n";
+        middle_file.close();
     }
 
     inline void OP::outputForGTP() const {
@@ -2721,6 +2860,11 @@ namespace op {
 
         if (_gtp) {
             outputForGTP();
+            return;
+        }
+
+        if (_random_walk) {
+            randomWalk();
             return;
         }
 
