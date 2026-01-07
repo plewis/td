@@ -158,7 +158,7 @@ namespace op {
 
         static string           _program_name;
         static unsigned         _major_version;
-        static unsigned         _minor_version;
+        static string           _minor_version;
 
         static bool             _silent;    // set to true for unit tests only
 
@@ -228,7 +228,7 @@ namespace op {
         if (_silent)
             return;
 
-        cout << str(format("%s version %d.%d") % OP::_program_name % OP::_major_version % OP::_minor_version) << endl;
+        cout << str(format("%s version %d.%s") % OP::_program_name % OP::_major_version % OP::_minor_version) << endl;
 
         boost::filesystem::path currentPath = boost::filesystem::current_path();
         cerr << "Current working directory: " << currentPath << endl;
@@ -237,7 +237,7 @@ namespace op {
         cout << "Settings saved in file \"" << fn << "\"" << endl;
         cout << "Rename \"" << fn << " to \"op.conf\" to recreate this analysis." << endl;
         ofstream outf(fn);
-        outf << str(format("# Configuration file for %s version %d.%d\n") % _program_name % _major_version % _minor_version);
+        outf << str(format("# Configuration file for %s version %d.%s\n") % _program_name % _major_version % _minor_version);
         outf << "# https://github.com/plewis/op/\n";
         outf << str(format("prefix = %s\n") % _prefix);
         if (_noisy) {
@@ -358,7 +358,7 @@ namespace op {
 
         // If the user specified --version on the command line, output the version and quit
         if (vm.count("version") > 0) {
-            cout << str(format("This is %s version %d.%d") % _program_name % _major_version % _minor_version) << endl;
+            cout << str(format("This is %s version %d.%s") % _program_name % _major_version % _minor_version) << endl;
             exit(0);
         }
 
@@ -2221,6 +2221,7 @@ namespace op {
         rscript += "dev.off()\n";
     }
 
+#if 0   // old version used stack for dist_matrix, but that can cause stack overflow
     inline void OP::calcPairwise() const {
         unsigned ntrees = _tree_summary->getNumTrees();
 
@@ -2289,6 +2290,81 @@ namespace op {
         if (_noisy)
             cout << "Done." << endl;
     }
+#else // new version allocates dist_matrix on heap
+    inline void OP::calcPairwise() const {
+        unsigned ntrees = _tree_summary->getNumTrees();
+
+        if (_noisy)
+            cout << "Computing pairwise distance matrix..." << endl;
+
+        // Allocate memory for pairwise distance matrix
+        vector< vector<double> > dist_matrix(ntrees);
+        for (unsigned i = 0; i < ntrees; i++) {
+            dist_matrix[i].resize(ntrees);
+        }
+
+        TreeManip starttm;
+        TreeManip endtm;
+        for (unsigned i = 0; i < ntrees - 1; i++) {
+            buildTree(i, starttm);
+            for (unsigned j = i+1; j < ntrees; j++) {
+                buildTree(j, endtm);
+                vector<Split::treeid_pair_t> ABpairs;
+                vector<Split::split_pair_t> commonPairs;
+                vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+                double bhvdist = calcBHVDistance(starttm, endtm, in_pairs, ABpairs, commonPairs);
+                dist_matrix[i][j] = bhvdist;
+                dist_matrix[j][i] = bhvdist;
+            }
+        }
+
+        // Save the distance matrix to an R file
+        string fn = _prefix + ".R";
+        ofstream distf(fn);
+
+        // Save the lower triangle of the pairwise distance matrix by column.
+        // For example, this matrix
+        // 0 0 0 0
+        // 1 0 0 0
+        // 2 4 0 0
+        // 3 5 6 0
+        // would be saved as
+        // c(1,2,3,4,5,6)
+        // so the indexes saved would be
+        // (1,0), (2,0), (3,0), (2,1), (3,1), (3,2)
+        distf << "lower_triangle_by_column <- c(";
+        bool first = true;
+        for (unsigned j = 0; j < ntrees-1; j++) {
+            for (unsigned i = j+1; i < ntrees; i++) {
+                if (first) {
+                    distf << dist_matrix[i][j];
+                    first = false;
+                }
+                else
+                    distf << ", " << dist_matrix[i][j];
+            }
+        }
+        distf << ")" << endl;
+        distf << boost::str(format("m <- matrix(rep(0, %d), nrow = %d, ncol = %d, dimnames = list(paste0('t', 1:%d), paste0('t', 1:%d)))")
+            % (ntrees*ntrees) % ntrees % ntrees % ntrees % ntrees) << endl;
+        distf << "m[lower.tri(m, diag = FALSE)] <- lower_triangle_by_column" << endl;
+        distf << "d <- as.dist(m)" << endl;
+        distf.close();
+
+        // string gofn = _prefix + "-go.R";
+        // ofstream gof(gofn);
+        // gof << "setwd(getSrcDirectory(function(){})[1])" << endl;
+        // gof << "source(\"" << fn << "\")" << endl;
+        // gof << "mapping <- cmdscale(d, 2)" << endl;
+        // gof << "n <- nrow(mapping)" << endl;
+        // gof << "cols <- c(rep(\"navy\", n-1),\"red\")" << endl;
+        // gof << "plot(mapping, asp=1, ann=F, axes=F, col=cols, pch=16)" << endl;
+        // gof.close();
+
+        if (_noisy)
+            cout << "Done." << endl;
+    }
+#endif
 
     inline void OP::randomWalk() const {
         // Carry out random walk starting from reference tree and walking for _nsteps steps
