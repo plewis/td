@@ -1070,7 +1070,7 @@ namespace op {
                     }
                 }
                 else if (inside_edge_length) {
-                    if (ch == ',' || ch == ')' || iswspace(ch)) {
+                    if (ch == ',' || ch == ')' || ch == ';' || iswspace(ch)) {
                         inside_edge_length = false;
                         edge_length_position = 0;
                         extractEdgeLen(nd, edge_length_str);
