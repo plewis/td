@@ -5,15 +5,25 @@ namespace op {
 
     class TreeSummary {
         public:
+            enum class TreeFileType {
+                NEXUS,
+                REVBAYES,
+                BPP,
+                OTHER
+            };
                                         TreeSummary();
                                         ~TreeSummary();
 
             static string               scaleEdgeLengths(const string & newick, bool rooted, double scaler);
+            void                        readBPPTreefile(bool reftree, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed);
             void                        readRevBayesTreefile(const string & filename, bool reftree, bool hpdrad, double radpct, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed);
             void                        readTreefile(const string & filename, bool reftree, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed);
             void                        saveTrees(const string & filename) const;
+            bool                        readFileIntoBuffer(const string & filename);
 
             // Utility functions
+            TreeFileType                treeFileTypeFromBuffer() const;
+            void                        stripThetasFromBPPTree(string & newick) const;
             void                        retainHPDCredibleSet(unsigned hpdpct, const vector<double> & log_posteriors);
             void                        randomlySample(unsigned sample_size, unsigned rnseed);
             void                        absorbTreeSummary(const TreeSummary & other);
@@ -34,6 +44,7 @@ namespace op {
         private:
 
             //Split::treemap_t            _treeIDs;
+            stringstream                _buffer;
             string                      _reftree;
             bool                        _is_refrooted;
             vector<string>              _newicks;
@@ -123,6 +134,117 @@ namespace op {
         if (scaler != 1.0)
             tm.scaleAllEdgeLengths(scaler);
         return tm.makeNewick(9, false);
+    }
+
+    inline TreeSummary::TreeFileType TreeSummary::treeFileTypeFromBuffer() const {
+        // Get reference to data stored in buffer
+        const string & s = _buffer.str();
+
+        // The _buffer should not be empty when this function is called
+        assert(!s.empty());
+
+        // Copy the first 50 characters of s
+        string first_fifty = s.substr(0, 50);
+
+        // If the file is in NEXUS format, the first 50 characters should start with "#nexus" (case insensitive)
+        regex nexus_re(R"(#[Nn][Ee][Xx][Uu][Ss][\s\S]+)");
+        if (regex_match(first_fifty, nexus_re)) {
+            return TreeFileType::NEXUS;
+        }
+
+        // If the file is in RevBayes format, the first 50 characters should start
+        // "Iteration\tPosterior\tLikelihood\tPrior\tpsi"
+        regex revbayes_re(R"(Iteration\s+Posterior\s+Likelihood\s+Prior\s+psi[\s\S]+)");
+        if (regex_match(first_fifty,  revbayes_re)) {
+            return TreeFileType::REVBAYES;
+        }
+
+        // If the file is in BPP format, there should be theta values following the # character
+        regex bpp_re(R"([\s\S]+?\s+[#][.0-9]+[:]\s+[.0-9]+[,)][\s\S]+)");
+        if (regex_match(s, bpp_re)) {
+            return TreeFileType::BPP;
+        }
+
+        return TreeFileType::OTHER;
+    }
+
+    inline void TreeSummary::stripThetasFromBPPTree(string & newick) const {
+        // Define a regular expression that matches BPP theta values
+        regex bpp_theta_re(R"((\s+#[.0-9]+?)(?=[:;]))");
+        string bpp_theta_replacement = "";
+
+        // Use regex_replace to create a new string with all matches replaced
+        newick = regex_replace(newick, bpp_theta_re, bpp_theta_replacement);
+
+        regex bpp_space_re(R"([:]\s+([.0-9]+))");
+        string bpp_space_replacement = ":$1";
+
+        // Use regex_replace to create a new string with all matches replaced
+        newick = regex_replace(newick, bpp_space_re, bpp_space_replacement);
+    }
+
+    inline bool TreeSummary::readFileIntoBuffer(const string & filename) {
+        // Read entire tree file into a buffer
+        ifstream inf(filename.c_str());
+        _buffer.clear();
+        _buffer << inf.rdbuf();
+        return true;
+    }
+
+    inline void TreeSummary::readBPPTreefile(bool reftree, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed) {
+        // Specifying stride, keep, subsample, and subseed makes no sense if reading in reference tree
+        bool default_stride    = (stride == 1);
+        bool default_keep      = (keep == -1);
+        bool default_subsample = (subsample == -1);
+        bool default_subseed   = (subseed == 0);
+        assert( !reftree || ( default_stride && default_keep && default_subsample && default_subseed ) );
+
+        // Object should be empty when this function is called
+        // To accumulate trees from different treefiles, use absorbTreeSummary function
+        // to pull trees from a different TreeSummary object into this object
+        assert(_newicks.empty());
+        assert(_log_posteriors.empty());
+        assert(_is_rooted.empty());
+
+        // Negative keep says to keep all trees
+        if (keep < 0) {
+            keep = std::numeric_limits<int>::max();
+        }
+
+        // Go through buffer line by line
+        unsigned t = 0; // indexes all trees in the file, even if they are not saved
+        unsigned nkept = 0; // keeps track of the number of trees from the file that are saved
+        string newick;
+        while (getline(_buffer, newick)) {
+            // Determine whether this line holds a tree that should be saved
+            bool do_sample = (t >= skip);
+            do_sample = do_sample && (((t - skip) % stride) == 0);
+            do_sample = do_sample && (nkept < keep);
+            if (do_sample) {
+                // // Check whether this line has the expected number of tab-separated fields
+                if (reftree) {
+                    _is_refrooted = rooted;
+                    stripThetasFromBPPTree(newick);
+                    _reftree = scaleEdgeLengths(newick, rooted, scaler);
+                    return;
+                }
+                else {
+                    // Store rooting information for this tree
+                    _is_rooted.push_back(rooted);
+
+                    // Store newick tree description for this tree
+                    stripThetasFromBPPTree(newick);
+                    _newicks.emplace_back(scaleEdgeLengths(newick, rooted, scaler));
+                    nkept++;
+                }
+            }
+            t++;
+        }
+
+        // If subsampling, preserve only subsample randomly-chosen trees
+        if (subsample != -1) {
+            randomlySample(subsample, subseed);
+        }
     }
 
     inline void TreeSummary::readRevBayesTreefile(const string & filename, bool reftree, bool hpdrad, double radpct, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed) {

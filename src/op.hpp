@@ -22,6 +22,7 @@ namespace op {
 
     private:
 
+        void readRefTree();
         void readTrees();
         //void assertFileExists(string fn) const;
         void shrinkToHPD();
@@ -29,6 +30,7 @@ namespace op {
         void moveAlongPath();
         void calcDistanceToReference() const;
         void calcFrechetMean();
+        void calcStepwise() const;
         void calcPairwise() const;
         inline void randomWalk() const;
         void outputVersionAndSettings() const;
@@ -112,6 +114,7 @@ namespace op {
         bool                    _noisy;
         bool                    _output_for_gtp;
         string                  _prefix;
+        bool                    _stepwise;
         bool                    _pairwise;
         bool                    _snapshot;
         bool                    _random_walk;
@@ -171,6 +174,7 @@ namespace op {
     inline OP::OP() :
         _noisy(false),
         _prefix("outfile"),
+        _stepwise(false),
         _pairwise(false),
         _snapshot(false),
         _random_walk(false),
@@ -256,6 +260,9 @@ namespace op {
             outf << str(format("stepmu = %.9f\n") % _step_mu);
             outf << str(format("stepsigma = %.9f\n") % _step_sigma);
         }
+        else if (_stepwise) {
+            outf << "stepwise = yes\n";
+        }
         else if (_pairwise) {
             outf << "pairwise = yes\n";
         }
@@ -320,6 +327,7 @@ namespace op {
             ("nsteps", program_options::value(&_nsteps), "specifies number of steps to take in random walk")
             ("stepmu", program_options::value(&_step_mu), "specifies mean of normal variates used in random walk")
             ("stepsigma", program_options::value(&_step_sigma), "specifies standard deviation of normal variates used in random walk")
+            ("stepwise", program_options::bool_switch(&_stepwise),"calculates distance between each iteration and the previous iteration (default: stepwise distances not calculated)")
             ("pairwise", program_options::bool_switch(&_pairwise),"calculates pairwise distances (default: pairwise distances not calculated)")
             //("refdist", program_options::bool_switch(&_refdist),"calculates distance of the first tree to all other trees (default: distances not calculated)")
             ("frechetmean", program_options::bool_switch(&_frechet_mean),"calculate Frechet mean tree and variance (default: mean and variance not calculated)")
@@ -437,22 +445,25 @@ namespace op {
             buildThreadSchedule();
 
         // Sanity check
-        bool ok = ( _pairwise && !_frechet_mean && !_refdist && !_snapshot && !_gtp && !_random_walk);    // only pairwise chosen
-        ok     |= (!_pairwise &&  _frechet_mean && !_refdist && !_snapshot && !_gtp && !_random_walk);    // only frechet mean chosen
-        ok     |= (!_pairwise && !_frechet_mean &&  _refdist && !_snapshot && !_gtp && !_random_walk);    // only refdist chosen
-        ok     |= (!_pairwise && !_frechet_mean && !_refdist &&  _snapshot && !_gtp && !_random_walk);    // only snapshot chosen
-        ok     |= (!_pairwise && !_frechet_mean && !_refdist && !_snapshot &&  _gtp && !_random_walk);    // only gtp chosen
-        ok     |= (!_pairwise && !_frechet_mean && !_refdist && !_snapshot && !_gtp &&  _random_walk);    // only random walk chosen
+        bool ok = ( _stepwise && !_pairwise && !_frechet_mean && !_refdist && !_snapshot && !_gtp && !_random_walk);    // only _stepwise chosen
+        ok     |= (!_stepwise &&  _pairwise && !_frechet_mean && !_refdist && !_snapshot && !_gtp && !_random_walk);    // only _pairwise chosen
+        ok     |= (!_stepwise && !_pairwise &&  _frechet_mean && !_refdist && !_snapshot && !_gtp && !_random_walk);    // only _frechet_mean chosen
+        ok     |= (!_stepwise && !_pairwise && !_frechet_mean &&  _refdist && !_snapshot && !_gtp && !_random_walk);    // only _refdist chosen
+        ok     |= (!_stepwise && !_pairwise && !_frechet_mean && !_refdist &&  _snapshot && !_gtp && !_random_walk);    // only _snapshot chosen
+        ok     |= (!_stepwise && !_pairwise && !_frechet_mean && !_refdist && !_snapshot &&  _gtp && !_random_walk);    // only _gtp chosen
+        ok     |= (!_stepwise && !_pairwise && !_frechet_mean && !_refdist && !_snapshot && !_gtp &&  _random_walk);    // only _random_walk chosen
 
         if (!ok) {
             cerr << "Sorry, you can only do one of these things during a single run: " << endl;
-            cerr << "(1) calculate pairwise distances (pairwise); " << endl;
-            cerr << "(2) calculate distance from a reference tree to all other trees (refdist is yes if reftree is specified);" << endl;
-            cerr << "(3) calculate frechet mean and variance (frechet); or" << endl;
-            cerr << "(4) move along path a specified distance (lambda)" << endl;
-            cerr << "(5) carry out random walk of length nsteps" << endl;
-            cerr << "(6) save trees for use with Owen & Provan GTP software" << endl;
+            cerr << "(1) calculate stepwise distances (stepwise); " << endl;
+            cerr << "(2) calculate pairwise distances (pairwise); " << endl;
+            cerr << "(3) calculate distance from a reference tree to all other trees (refdist is yes if reftree is specified);" << endl;
+            cerr << "(4) calculate frechet mean and variance (frechet); or" << endl;
+            cerr << "(5) move along path a specified distance (lambda)" << endl;
+            cerr << "(6) carry out random walk of length nsteps" << endl;
+            cerr << "(7) save trees for use with Owen & Provan GTP software" << endl;
             cerr << "You specified: " << endl;
+            cerr << "  stepwise    = " << (_stepwise ? "yes" : "no") << endl;
             cerr << "  pairwise    = " << (_pairwise ? "yes" : "no") << endl;
             cerr << "  frechetmean = " << (_frechet_mean ? "yes" : "no") << endl;
             cerr << "  refdist     = " << (_refdist ? "yes" : "no") << endl;
@@ -2221,6 +2232,52 @@ namespace op {
         rscript += "dev.off()\n";
     }
 
+    inline void OP::calcStepwise() const {
+        string fn = _prefix + "-stepwise.R";
+        if (_noisy)
+            cout << "Writing stepwise distances to file \"" << fn << "\" along with R code to plot their density" << endl;
+
+        int ndecimals = static_cast<int>(_precision);
+        unsigned ntrees = _tree_summary->getNumTrees();
+        TreeManip tmA;
+        buildTree(0, tmA);
+        TreeManip tmB;
+        vector<double> stepwise_dists(ntrees - 1, 0.0);
+        for (unsigned i = 1; i < ntrees; i++) {
+            bool startA = static_cast<bool>(i % 2 ==  1);
+            if (startA) {
+                // let tmA be the starting tree and tmB be the ending tree
+                buildTree(i, tmB);
+                vector<Split::treeid_pair_t> ABpairs;
+                vector<Split::split_pair_t> commonPairs;
+                vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+                stepwise_dists[i] = calcBHVDistance(tmA, tmB, in_pairs, ABpairs, commonPairs);
+            }
+            else {
+                // let tmB be the starting tree and tmA be the ending tree
+                buildTree(i, tmA);
+                vector<Split::treeid_pair_t> ABpairs;
+                vector<Split::split_pair_t> commonPairs;
+                vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+                stepwise_dists[i] = calcBHVDistance(tmB, tmA, in_pairs, ABpairs, commonPairs);
+            }
+        }
+
+        // Write trees to a file with BHV distance inserted as a nexus comment for each tree
+        ofstream outf(fn);
+        outf << "bhvdists <- c(";
+        double d = stepwise_dists[0];
+        outf << setprecision(ndecimals) << d;
+        for (unsigned i = 1; i < stepwise_dists.size(); i++) {
+            double d = stepwise_dists[i];
+            outf << "," << setprecision(ndecimals) << d;
+        }
+        outf << ")" << endl;
+        outf << "plot(density(bhvdists), lwd=2, col=\"navy\")" << endl;
+        outf << "mean(bhvdists)" << endl;
+        outf.close();
+    }
+
 #if 0   // old version used stack for dist_matrix, but that can cause stack overflow
     inline void OP::calcPairwise() const {
         unsigned ntrees = _tree_summary->getNumTrees();
@@ -2720,13 +2777,14 @@ namespace op {
    //     filesystem::path absolutePath = currentPath / relativePath;
    // }
 
-    inline void OP::readTrees() {
-        // Create a master TreeSummary object
-        _tree_summary = std::make_shared<TreeSummary>();
+    inline void OP::readRefTree() {
+        // Read tree file into _buffer
+        _tree_summary->readFileIntoBuffer(_ref_tree_filename);
 
-        // Read in reference tree if specified
-        if (_refdist || _random_walk) {
-            // Assume that the tree file is in Nexus format
+        // Determine whether tree file is NEXUS, RevBayes, or BPP
+        TreeSummary::TreeFileType tree_file_type = _tree_summary->treeFileTypeFromBuffer();
+
+        if (tree_file_type == TreeSummary::TreeFileType::NEXUS) {
             _tree_summary->readTreefile(_ref_tree_filename,
                 true,
                 _refskip,
@@ -2736,40 +2794,67 @@ namespace op {
                 1,
                 -1,
                 1);
-            if (!_tree_summary->isRefTree()) {
-                // Failed to read any trees, so the file may not be in Nexus format.
-                // Assume next that the file is in RevBayes format.
-                _tree_summary->readRevBayesTreefile(_ref_tree_filename,
-                    true,
-                    false,
-                    _radius_percent,
-                    _refskip,
-                    1,
-                    _refrooted,
-                    _refscale,
-                    -1,
-                    -1,
-                    1);
-            }
-
-            if (!_tree_summary->isRefTree()) {
-                // Could not obtain tree from the specified _ref_tree_filename
-                throw Xop("Could not obtain a tree from the specified reference tree file");
-            }
+        }
+        else if (tree_file_type == TreeSummary::TreeFileType::REVBAYES) {
+            _tree_summary->readRevBayesTreefile(_ref_tree_filename,
+                true,
+                false,
+                _radius_percent,
+                _refskip,
+                1,
+                _refrooted,
+                _refscale,
+                -1,
+                -1,
+                1);
+        }
+        else if (tree_file_type == TreeSummary::TreeFileType::BPP) {
+            _tree_summary->readBPPTreefile(
+                true,
+                _refskip,
+                1,
+                true,
+                _refscale,
+                -1,
+                -1,
+                1);
+        }
+        else {
+            throw Xop("treefile does not seem to be in Nexus, RevBayes, or BPP format");
         }
 
-//        unsigned radpct = _radius_percent;
-//        if (_hpd_radius) {
-//            radpct = 100;
-//            shrinkToHPD();
-//        }
+        if (!_tree_summary->isRefTree()) {
+            // Could not obtain tree from the specified _ref_tree_filename
+            throw Xop("Could not obtain a tree from the specified reference tree file");
+        }
+    }
 
-        // Read in trees
+    inline void OP::readTrees() {
+        // Create a master TreeSummary object
+        _tree_summary = std::make_shared<TreeSummary>();
+
+        // Read in reference tree if specified
+        if (_refdist || _random_walk) {
+            readRefTree();
+        }
+
+        // Read in trees (possibly from multiple tree files)
         unsigned which_treefile = 0;
         for (const auto & fn : _tree_file_names) {
+            TreeSummary ts;
+
+            // Read tree file into _buffer
+            ts.readFileIntoBuffer(fn);
+
+            // Determine whether tree file is NEXUS, RevBayes, or BPP
+            TreeSummary::TreeFileType tree_file_type = ts.treeFileTypeFromBuffer();
+
             if (_hpd_radius) {
                 // Assume RevBayes tree file format because _hpd_radius requires log-posterior for each tree
-                TreeSummary ts;
+                if (tree_file_type != TreeSummary::TreeFileType::REVBAYES) {
+                    throw Xop("treefile does not seem to be in RevBayes format (required if hpdrad specified)");
+                }
+
                 ts.readRevBayesTreefile(fn,
                     false,
                     _hpd_radius,
@@ -2792,21 +2877,18 @@ namespace op {
                 }
             }
             else {
-                // Assume first that the tree file is in Nexus format
-                TreeSummary ts;
-                ts.readTreefile(fn,
-                    false,
-                    _skip[which_treefile],
-                    _stride[which_treefile],
-                    _rooted[which_treefile],
-                    _scale_by[which_treefile],
-                    _keep[which_treefile],
-                    _subsample[which_treefile],
-                    _subseed[which_treefile]);
-                unsigned ts_ntrees = ts.getNumTrees();
-                if (ts_ntrees == 0) {
-                    // Failed to read any trees, so the file may not be in Nexus format.
-                    // Assume next that the file is in RevBayes format.
+                if (tree_file_type == TreeSummary::TreeFileType::NEXUS) {
+                    ts.readTreefile(fn,
+                        false,
+                        _skip[which_treefile],
+                        _stride[which_treefile],
+                        _rooted[which_treefile],
+                        _scale_by[which_treefile],
+                        _keep[which_treefile],
+                        _subsample[which_treefile],
+                        _subseed[which_treefile]);
+                }
+                else if (tree_file_type == TreeSummary::TreeFileType::REVBAYES) {
                     ts.readRevBayesTreefile(fn,
                         false,
                         false,
@@ -2818,12 +2900,25 @@ namespace op {
                         _keep[which_treefile],
                         _subsample[which_treefile],
                         _subseed[which_treefile]);
-                    ts_ntrees = ts.getNumTrees();
                 }
+                else if (tree_file_type == TreeSummary::TreeFileType::BPP) {
+                    ts.readBPPTreefile(
+                        false,
+                        _skip[which_treefile],
+                        _stride[which_treefile],
+                        true,
+                        _scale_by[which_treefile],
+                        _keep[which_treefile],
+                        _subsample[which_treefile],
+                        _subseed[which_treefile]);
+                }
+
+                unsigned ts_ntrees = ts.getNumTrees();
                 if (ts_ntrees > 0)
                     _tree_summary->absorbTreeSummary(ts);
                 else
                     throw Xop(format("Number of trees saved from file \"%s\" was zero") % fn);
+
                 if (_save_trees) {
                     string basefn = boost::filesystem::path(fn).filename().string();
                     ts.saveTrees(str(format("%s-saved.tre") % _prefix));
@@ -2946,6 +3041,11 @@ namespace op {
 
         if (_snapshot) {
             moveAlongPath();
+            return;
+        }
+
+        if (_stepwise) {
+            calcStepwise();
             return;
         }
 
