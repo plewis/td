@@ -161,7 +161,7 @@ namespace op {
 
         // If the file is in BPP format, there should be theta values following the # character
         regex bpp_re(R"([\s\S]+?\s+[#][.0-9]+[:]\s+[.0-9]+[,)][\s\S]+)");
-        if (regex_match(s, bpp_re)) {
+        if (regex_match(first_fifty, bpp_re)) {
             return TreeFileType::BPP;
         }
 
