@@ -952,7 +952,11 @@ namespace op {
     inline void TreeManip::buildFromNewick(const string & newick, bool rooted, bool allow_polytomies) {
         _tree.reset();
         _tree = std::make_shared<Tree>();
+#if defined(ALWAYS_ROOTED)
+        _tree->_is_rooted = true;
+#else
         _tree->_is_rooted = rooted;
+#endif
 
         string commentless_newick = newick;
         stripOutNexusComments(commentless_newick);
@@ -961,7 +965,11 @@ namespace op {
         if (_tree->_nleaves == 0)
             throw Xop("Expecting newick tree description to have at least 4 leaves");
 
+#if defined(ALWAYS_ROOTED)
+        unsigned max_nodes = 2*_tree->_nleaves;
+#else
         unsigned max_nodes = 2*_tree->_nleaves - (_tree->_is_rooted ? 0 : 2);
+#endif
         _tree->_nodes.resize(max_nodes);
 
         // Assign all nodes a default node number that is negative to make it easy to tell if we've failed to set it.
@@ -983,11 +991,17 @@ namespace op {
             Node * nd = &_tree->_nodes[curr_node_index];
             _tree->_root = nd;
 
+#if defined(ALWAYS_ROOTED)
+            nd = &_tree->_nodes[++curr_node_index];
+            nd->_parent = &_tree->_nodes[curr_node_index - 1];
+            nd->_parent->_left_child = nd;
+#else
             if (_tree->_is_rooted) {
                 nd = &_tree->_nodes[++curr_node_index];
                 nd->_parent = &_tree->_nodes[curr_node_index - 1];
                 nd->_parent->_left_child = nd;
             }
+#endif
 
             // Some flags to keep track of what we did last
             enum {
@@ -1122,9 +1136,15 @@ namespace op {
                         if (!nd->_parent || !(previous & Comma_Valid))
                             throw Xop(str(format("Unexpected comma at position %d in tree description\n%s") % position_in_string % commentless_newick));
 
+#if defined(ALWAYS_ROOTED)
+                        // Check for polytomies
+                        if (!canHaveSibling(nd, true, allow_polytomies))
+                            throw Xop(str(format("Polytomy found in the following tree description but polytomies prohibited:\n%s") % commentless_newick));
+#else
                         // Check for polytomies
                         if (!canHaveSibling(nd, rooted, allow_polytomies))
                             throw Xop(str(format("Polytomy found in the following tree description but polytomies prohibited:\n%s") % commentless_newick));
+#endif
 
                         // Create the sibling
                         curr_node_index++;
@@ -1197,10 +1217,13 @@ namespace op {
             if (inside_quoted_name)
                 throw Xop(str(format("Expecting single quote to mark the end of node name at position %d in tree description\n%s") % node_name_position % commentless_newick));
 
+#if defined(ALWAYS_ROOTED)
+#else
             if (!_tree->_is_rooted) {
                 // Root at leaf whose _number = 0
                 rerootAt(0);
             }
+#endif
 
             refreshPreorder();
             refreshLevelorder();

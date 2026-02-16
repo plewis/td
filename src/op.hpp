@@ -131,14 +131,17 @@ namespace op {
         vector<int>             _keep;
         vector<int>             _subsample;
         vector<unsigned>        _subseed;
-        vector<bool>            _rooted;
         vector<string>          _tree_file_names;
         unsigned                _nsteps;
         double                  _step_mu;
         double                  _step_sigma;
         string                  _ref_tree_filename;
         unsigned                _refskip;
+#if defined(ALWAYS_ROOTED)
+#else
         bool                    _refrooted;
+        vector<bool>            _rooted;
+#endif
         double                  _refscale;
         vector<double>          _lambda;
         vector<double>          _scale_by;
@@ -191,7 +194,11 @@ namespace op {
         _random_number_seed(1),
         _ref_tree_filename(""),
         _refskip(0),
+#if defined(ALWAYS_ROOTED)
+#else
+        _rooted(false),
         _refrooted(false),
+#endif
         _refscale(1.0),
         _tree_summary(nullptr),
         _frechet_epsilon(0.00001),
@@ -270,7 +277,10 @@ namespace op {
             //outf << "refdist = yes\n";
             outf << "reftree = " << _ref_tree_filename << endl;
             outf << "refskip = " << _refskip << endl;
+#if defined(ALWAYS_ROOTED)
+#else
             outf << "refrooted = " << (_refrooted ? "yes" : "no") << endl;
+#endif
             outf << str(format("refscale = %.9f") % _refscale) << endl;
         }
         else if (_gtp) {
@@ -297,7 +307,10 @@ namespace op {
             outf << "keep = " << _keep[i] << endl;
             outf << "subsample = " << _subsample[i] << endl;
             outf << "subseed = " << _subseed[i] << endl;
+#if defined(ALWAYS_ROOTED)
+#else
             outf << "rooted = " << (_rooted[i] ? "yes" : "no") << endl;
+#endif
             outf << str(format("scale = %.9f\n") % _scale_by[i]);
         }
         outf.close();
@@ -312,7 +325,11 @@ namespace op {
             ("noisy",program_options::bool_switch(&_noisy), "show a lot of output (default: no)")
             ("reftree",  program_options::value(&_ref_tree_filename), "name of reference tree file in NEXUS format; output will be distances from this reference tree to all trees specified with --treefile (no default)")
             ("refskip", program_options::value(&_refskip), "number of trees to skip in specified reference tree file (default: 0)")
+#if defined(ALWAYS_ROOTED)
+#else
             ("refrooted", program_options::value(&_refrooted), "assume reference tree is rooted (default: no)")
+            ("rooted", program_options::value(&_rooted), "assume trees are rooted (default: no)")
+#endif
             ("refscale", program_options::value(&_refscale), "rescale reference tree by this multiplicative factor (default: 1.0)")
             ("treefile,t",  program_options::value(&_tree_file_names), "name of tree file in NEXUS format (no default)")
             ("skip", program_options::value(&_skip), "number of trees to skip in specified treefile (default: 0)")
@@ -320,7 +337,6 @@ namespace op {
             ("keep", program_options::value(&_keep), "number of trees to retain from treefile (default: all)")
             ("subsample", program_options::value(&_subsample), "number of trees to randomly retain (default: no random subsampling)")
             ("subseed", program_options::value(&_subseed), "random number seed to use for subsampling (default: 1)")
-            ("rooted", program_options::value(&_rooted), "assume trees are rooted (default: no)")
             ("precision", program_options::value(&_precision)->default_value(9), "number of digits precision to use in outputting distances (default: 9)")
             ("prefix", program_options::value(&_prefix), "filename prefix for output file name (default: 'outfile')")
             ("lambda", program_options::value(&_lambda), "specify a value in [0,1] to calculate tree at that point (assumes starting tree is first tree and ending tree is the second tree in the treefile)")
@@ -514,6 +530,8 @@ namespace op {
                 throw Xop("If specified for any treefile, a subseed setting must be provided for every treefile");
             }
 
+#if defined(ALWAYS_ROOTED)
+#else
             if (_rooted.empty()) {
                 // trees are assumed to be unrooted by default
                 _rooted.resize(_tree_file_names.size(), false);
@@ -521,6 +539,7 @@ namespace op {
             else if (_rooted.size() != _tree_file_names.size()) {
                 throw Xop("If specified for any treefile, rooted setting must be provided for every treefile");
             }
+#endif
 
             if (_scale_by.empty()) {
                 _scale_by.resize(_tree_file_names.size(), 1.0);
@@ -1452,8 +1471,13 @@ namespace op {
         string newick = _tree_summary->getRefNewick();
         assert(!newick.empty());
 
+#if defined(ALWAYS_ROOTED)
+        bool isrooted = true;
+        tm.setIsRooted(isrooted);
+#else
         bool isrooted = _tree_summary->isRefRooted();
         tm.setIsRooted(isrooted);
+#endif
         try {
             tm.buildFromNewick(newick, /*rooted*/isrooted, /*allow_polytomies*/true);
         } catch (Xop & e) {
@@ -1465,11 +1489,13 @@ namespace op {
     inline void OP::buildTree(unsigned tree_index, TreeManip & tm) const {
         string newick = _tree_summary->getNewick(tree_index);
 
+#if defined(ALWAYS_ROOTED)
+        bool isrooted = true;
+        tm.setIsRooted(isrooted);
+#else
         bool isrooted = _tree_summary->isRooted(tree_index);
         tm.setIsRooted(isrooted);
-        //if (!isrooted) {
-        //    throw Xop("Trees must be rooted in this version");
-        //}
+#endif
         try {
             tm.buildFromNewick(newick, /*rooted*/isrooted, /*allow_polytomies*/true);
         } catch (Xop & e) {
@@ -1799,7 +1825,11 @@ namespace op {
         int n = static_cast<int>(_tree_summary->getNumTrees());
         auto index = static_cast<unsigned>(lot.randint(0, n-1));
         string newick = _tree_summary->getNewick(index);
+#if defined(ALWAYS_ROOTED)
+        bool rooted = true;
+#else
         bool rooted = _tree_summary->isRooted(index);
+#endif
         tm.buildFromNewick(newick, rooted, /*allow_polytomies*/true);
         return index;
     }
@@ -2789,7 +2819,10 @@ namespace op {
                 true,
                 _refskip,
                 1,
+#if defined(ALWAYS_ROOTED)
+#else
                 _refrooted,
+#endif
                 _refscale,
                 1,
                 -1,
@@ -2802,7 +2835,10 @@ namespace op {
                 _radius_percent,
                 _refskip,
                 1,
+#if defined(ALWAYS_ROOTED)
+#else
                 _refrooted,
+#endif
                 _refscale,
                 -1,
                 -1,
@@ -2813,7 +2849,10 @@ namespace op {
                 true,
                 _refskip,
                 1,
+#if defined(ALWAYS_ROOTED)
+#else
                 true,
+#endif
                 _refscale,
                 -1,
                 -1,
@@ -2861,7 +2900,10 @@ namespace op {
                     _radius_percent,
                     _skip[which_treefile],
                     _stride[which_treefile],
+#if defined(ALWAYS_ROOTED)
+#else
                     _rooted[which_treefile],
+#endif
                     _scale_by[which_treefile],
                     _keep[which_treefile],
                     _subsample[which_treefile],
@@ -2882,7 +2924,10 @@ namespace op {
                         false,
                         _skip[which_treefile],
                         _stride[which_treefile],
+#if defined(ALWAYS_ROOTED)
+#else
                         _rooted[which_treefile],
+#endif
                         _scale_by[which_treefile],
                         _keep[which_treefile],
                         _subsample[which_treefile],
@@ -2895,7 +2940,10 @@ namespace op {
                         _radius_percent,
                         _skip[which_treefile],
                         _stride[which_treefile],
+#if defined(ALWAYS_ROOTED)
+#else
                         _rooted[which_treefile],
+#endif
                         _scale_by[which_treefile],
                         _keep[which_treefile],
                         _subsample[which_treefile],
@@ -2906,7 +2954,10 @@ namespace op {
                         false,
                         _skip[which_treefile],
                         _stride[which_treefile],
+#if defined(ALWAYS_ROOTED)
+#else
                         true,
+#endif
                         _scale_by[which_treefile],
                         _keep[which_treefile],
                         _subsample[which_treefile],
@@ -2988,7 +3039,11 @@ namespace op {
         ofstream gtpf(fn1);
         for (unsigned i = 0; i < _tree_summary->getNumTrees(); ++i) {
             TreeManip tm;
+#if defined(ALWAYS_ROOTED)
+            bool isrooted = true;
+#else
             bool isrooted = _tree_summary->isRooted(i);
+#endif
             tm.buildFromNewick(_tree_summary->getNewick(i), isrooted, true);
             gtpf << tm.makeNewick(9, false) << ";\n";
         }

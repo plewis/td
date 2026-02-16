@@ -14,10 +14,17 @@ namespace op {
                                         TreeSummary();
                                         ~TreeSummary();
 
+#if defined(ALWAYS_ROOTED)
+            static string               scaleEdgeLengths(const string & newick, double scaler);
+            void                        readBPPTreefile(bool reftree, unsigned skip, unsigned stride, double scaler, int keep, int subsample, unsigned subseed);
+            void                        readRevBayesTreefile(const string & filename, bool reftree, bool hpdrad, double radpct, unsigned skip, unsigned stride, double scaler, int keep, int subsample, unsigned subseed);
+            void                        readTreefile(const string & filename, bool reftree, unsigned skip, unsigned stride, double scaler, int keep, int subsample, unsigned subseed);
+#else
             static string               scaleEdgeLengths(const string & newick, bool rooted, double scaler);
             void                        readBPPTreefile(bool reftree, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed);
             void                        readRevBayesTreefile(const string & filename, bool reftree, bool hpdrad, double radpct, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed);
             void                        readTreefile(const string & filename, bool reftree, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed);
+#endif
             void                        saveTrees(const string & filename) const;
             bool                        readFileIntoBuffer(const string & filename);
 
@@ -35,30 +42,44 @@ namespace op {
             string                      getRefNewick() const;
             Tree::SharedPtr             getRefTree() const;
             bool                        isRefTree() const;
+#if defined(ALWAYS_ROOTED)
+#else
             bool                        isRefRooted() const;
+#endif
             Tree::SharedPtr             getTree(unsigned index) const;
             string                      getNewick(unsigned index) const;
-            bool                        isRooted(unsigned index) const;
             bool                        isIncludedInHPD(unsigned index) const;
+#if defined(ALWAYS_ROOTED)
+#else
+            bool                        isRooted(unsigned index) const;
+#endif
 
         private:
 
             //Split::treemap_t            _treeIDs;
             stringstream                _buffer;
             string                      _reftree;
-            bool                        _is_refrooted;
             vector<string>              _newicks;
             vector<double>              _log_posteriors;
+#if defined(ALWAYS_ROOTED)
+#else
+            bool                        _is_refrooted;
             vector<bool>                _is_rooted;
-
+#endif
         public:
 
             typedef std::shared_ptr< TreeSummary > SharedPtr;
         };
 
+#if defined(ALWAYS_ROOTED)
+    inline TreeSummary::TreeSummary() {
+        _reftree = "";
+    }
+#else
     inline TreeSummary::TreeSummary() : _is_refrooted(false) {
         _reftree = "";
     }
+#endif
 
     inline TreeSummary::~TreeSummary() {
     }
@@ -75,21 +96,31 @@ namespace op {
         TreeManip tm;
 
         // build the tree
+#if defined(ALWAYS_ROOTED)
+        tm.buildFromNewick(_reftree, true, true);
+#else
         tm.buildFromNewick(_reftree, _is_refrooted, true);
+#endif
 
         return tm.getTree();
     }
 
     inline Tree::SharedPtr TreeSummary::getTree(unsigned index) const {
+#if defined(ALWAYS_ROOTED)
+#else
         assert(_is_rooted.size() == _newicks.size());
+#endif
         if (index >= _newicks.size())
             throw Xop("getTree called with index >= number of stored trees");
 
         TreeManip tm;
 
         // build the tree
+#if defined(ALWAYS_ROOTED)
+        tm.buildFromNewick(_newicks[index], true, true);
+#else
         tm.buildFromNewick(_newicks[index], _is_rooted[index], true);
-
+#endif
         return tm.getTree();
     }
 
@@ -97,16 +128,22 @@ namespace op {
         return !_reftree.empty();
     }
 
+#if defined(ALWAYS_ROOTED)
+#else
     inline bool TreeSummary::isRefRooted() const {
         return _is_refrooted;
     }
+#endif
 
+#if defined(ALWAYS_ROOTED)
+#else
     inline bool TreeSummary::isRooted(unsigned index) const {
         if (index >= _is_rooted.size())
             throw Xop("isRooted called with index >= number of stored trees");
 
         return _is_rooted[index];
     }
+#endif
 
     inline string TreeSummary::getRefNewick() const {
         return _reftree;
@@ -122,12 +159,24 @@ namespace op {
     inline void TreeSummary::clear() {
         //_treeIDs.clear();
         _reftree = "";
-        _is_refrooted = false;
         _newicks.clear();
         _log_posteriors.clear();
+#if defined(ALWAYS_ROOTED)
+#else
+        _is_refrooted = false;
         _is_rooted.clear();
+#endif
     }
 
+#if defined(ALWAYS_ROOTED)
+    inline string TreeSummary::scaleEdgeLengths(const string & newick, double scaler) {
+        TreeManip tm;
+        tm.buildFromNewick(newick, true, true);
+        if (scaler != 1.0)
+            tm.scaleAllEdgeLengths(scaler);
+        return tm.makeNewick(9, false);
+    }
+#else
     inline string TreeSummary::scaleEdgeLengths(const string & newick, bool rooted, double scaler) {
         TreeManip tm;
         tm.buildFromNewick(newick, rooted, true);
@@ -135,6 +184,7 @@ namespace op {
             tm.scaleAllEdgeLengths(scaler);
         return tm.makeNewick(9, false);
     }
+#endif
 
     inline TreeSummary::TreeFileType TreeSummary::treeFileTypeFromBuffer() const {
         // Get reference to data stored in buffer
@@ -191,7 +241,12 @@ namespace op {
         return true;
     }
 
-    inline void TreeSummary::readBPPTreefile(bool reftree, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed) {
+#if defined(ALWAYS_ROOTED)
+    inline void TreeSummary::readBPPTreefile(bool reftree, unsigned skip, unsigned stride, double scaler, int keep, int subsample, unsigned subseed)
+#else
+    inline void TreeSummary::readBPPTreefile(bool reftree, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed)
+#endif
+        {
         // Specifying stride, keep, subsample, and subseed makes no sense if reading in reference tree
         bool default_stride    = (stride == 1);
         bool default_keep      = (keep == -1);
@@ -204,7 +259,10 @@ namespace op {
         // to pull trees from a different TreeSummary object into this object
         assert(_newicks.empty());
         assert(_log_posteriors.empty());
+#if defined(ALWAYS_ROOTED)
+#else
         assert(_is_rooted.empty());
+#endif
 
         // Negative keep says to keep all trees
         if (keep < 0) {
@@ -223,18 +281,28 @@ namespace op {
             if (do_sample) {
                 // // Check whether this line has the expected number of tab-separated fields
                 if (reftree) {
+#if defined(ALWAYS_ROOTED)
+                    stripThetasFromBPPTree(newick);
+                    _reftree = scaleEdgeLengths(newick, scaler);
+#else
                     _is_refrooted = rooted;
                     stripThetasFromBPPTree(newick);
                     _reftree = scaleEdgeLengths(newick, rooted, scaler);
+#endif
                     return;
                 }
                 else {
                     // Store rooting information for this tree
+#if defined(ALWAYS_ROOTED)
+                    // Store newick tree description for this tree
+                    stripThetasFromBPPTree(newick);
+                    _newicks.emplace_back(scaleEdgeLengths(newick, scaler));
+#else
                     _is_rooted.push_back(rooted);
-
                     // Store newick tree description for this tree
                     stripThetasFromBPPTree(newick);
                     _newicks.emplace_back(scaleEdgeLengths(newick, rooted, scaler));
+#endif
                     nkept++;
                 }
             }
@@ -247,7 +315,12 @@ namespace op {
         }
     }
 
-    inline void TreeSummary::readRevBayesTreefile(const string & filename, bool reftree, bool hpdrad, double radpct, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed) {
+#if defined(ALWAYS_ROOTED)
+    inline void TreeSummary::readRevBayesTreefile(const string & filename, bool reftree, bool hpdrad, double radpct, unsigned skip, unsigned stride, double scaler, int keep, int subsample, unsigned subseed)
+#else
+    inline void TreeSummary::readRevBayesTreefile(const string & filename, bool reftree, bool hpdrad, double radpct, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed)
+#endif
+    {
         // Specifying stride, keep, subsample, and subseed makes no sense if reading in reference tree
         assert(!reftree || ((stride == 1) && (keep == -1 || keep == 1) && (subsample == -1) && (subseed == 0)));
 
@@ -256,7 +329,10 @@ namespace op {
         // to pull trees from a different TreeSummary object into this object
         assert(_newicks.empty());
         assert(_log_posteriors.empty());
+#if defined(ALWAYS_ROOTED)
+#else
         assert(_is_rooted.empty());
+#endif
 
         // Negative keep says to keep all trees
         if (keep < 0) {
@@ -305,14 +381,22 @@ namespace op {
                 nparts = static_cast<unsigned>(parts.size());
                 assert((is_combined_treefile && nparts == 6) || nparts == 5);
                 if (reftree) {
+#if defined(ALWAYS_ROOTED)
+                    string & newick = parts[is_combined_treefile ? 5 : 4];
+                    _reftree = scaleEdgeLengths(newick, scaler);
+#else
                     _is_refrooted = rooted;
                     string & newick = parts[is_combined_treefile ? 5 : 4];
                     _reftree = scaleEdgeLengths(newick, rooted, scaler);
+#endif
                     return;
                 }
                 else {
                     // Store rooting information for this tree
+#if defined(ALWAYS_ROOTED)
+#else
                     _is_rooted.push_back(rooted);
+#endif
 
                     // Store log-posterior for this tree
                     double log_posterior = 0.0;
@@ -325,7 +409,11 @@ namespace op {
 
                     // Store newick tree description for this tree
                     string & newick = parts[is_combined_treefile ? 5 : 4];
+#if defined(ALWAYS_ROOTED)
+                    _newicks.emplace_back(scaleEdgeLengths(newick, scaler));
+#else
                     _newicks.emplace_back(scaleEdgeLengths(newick, rooted, scaler));
+#endif
                     nkept++;
                 }
             }
@@ -344,7 +432,12 @@ namespace op {
         }
     }
 
-    inline void TreeSummary::readTreefile(const string & filename, bool reftree, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed) {
+#if defined(ALWAYS_ROOTED)
+    inline void TreeSummary::readTreefile(const string & filename, bool reftree, unsigned skip, unsigned stride, double scaler, int keep, int subsample, unsigned subseed)
+#else
+    inline void TreeSummary::readTreefile(const string & filename, bool reftree, unsigned skip, unsigned stride, bool rooted, double scaler, int keep, int subsample, unsigned subseed)
+#endif
+    {
         // See http://phylo.bio.ku.edu/ncldocs/v2.1/funcdocs/index.html for NCL documentation
 
         // Specifying stride, keep, subsample, and subseed makes no sense if reading in reference tree
@@ -479,10 +572,13 @@ namespace op {
                             // taxa block
                             assert(d.IsProcessed());
 
+#if defined(ALWAYS_ROOTED)
+#else
                             bool is_rooted = d.IsRooted();
                             if (is_rooted != rooted) {
                                 throw Xop(format("Trees in \"%s\" were %s but you specified \"rooted = %s\" (possibly by default)") % filename % (is_rooted ? "rooted" : "unrooted") % (rooted ? "yes" : "no"));
                             }
+#endif
 
                             // store the newick tree description
                             string newick = d.GetNewick();;
@@ -492,14 +588,23 @@ namespace op {
                             }
 
                             if (reftree) {
+#if defined(ALWAYS_ROOTED)
+                                _reftree = scaleEdgeLengths(newick, scaler);
+#else
                                 _is_refrooted = is_rooted;
                                 _reftree = scaleEdgeLengths(newick, is_rooted, scaler);
+#endif
                                 break;
                             }
                             else {
+#if defined(ALWAYS_ROOTED)
+                                // Sampling all trees in file, go ahead and save to _newicks
+                                _newicks.push_back(scaleEdgeLengths(newick, scaler));
+#else
                                 _is_rooted.push_back(is_rooted);
                                 // Sampling all trees in file, go ahead and save to _newicks
                                 _newicks.push_back(scaleEdgeLengths(newick, is_rooted, scaler));
+#endif
                                 nkept++;
                             }
                         } // do_sample
@@ -540,6 +645,14 @@ namespace op {
         log_posteriors.insert(log_posteriors.end(), make_move_iterator(_log_posteriors.begin()), make_move_iterator(_log_posteriors.end()));
         _log_posteriors.erase(_log_posteriors.begin(), _log_posteriors.end());
 
+#if defined(ALWAYS_ROOTED)
+        for (unsigned i = 0; i < sample_size; ++i) {
+            unsigned j = lot.randint(0, newicks.size()-1);
+
+            _newicks.emplace_back(newicks[j]);
+            _log_posteriors.push_back(log_posteriors[j]);
+        }
+#else
         // Move _is_rooted to a new home
         vector<bool> is_rooted;
         is_rooted.insert(is_rooted.end(), make_move_iterator(_is_rooted.begin()), make_move_iterator(_is_rooted.end()));
@@ -552,6 +665,7 @@ namespace op {
             _log_posteriors.push_back(log_posteriors[j]);
             _is_rooted.push_back(is_rooted[j]);
         }
+#endif
     }
 
     inline void TreeSummary::retainHPDCredibleSet(unsigned hpdpct, const vector<double> & log_posteriors) {
@@ -597,13 +711,19 @@ namespace op {
         }
         _newicks.insert(_newicks.end(), other._newicks.begin(), other._newicks.end());
         _log_posteriors.insert(_log_posteriors.end(), other._log_posteriors.begin(), other._log_posteriors.end());
+#if defined(ALWAYS_ROOTED)
+#else
         _is_rooted.insert(_is_rooted.end(), other._is_rooted.begin(), other._is_rooted.end());
+#endif
     }
 
     inline void TreeSummary::saveTrees(const string & fn) const {
         // Saves trees (and log posteriors, if available) to a file named fn
         size_t ntrees = _newicks.size();
+#if defined(ALWAYS_ROOTED)
+#else
         assert(_is_rooted.size() == ntrees);
+#endif
         assert(_log_posteriors.empty() || _log_posteriors.size() == ntrees);
         ofstream hpdf(fn);
         hpdf << "#nexus\n\n";
@@ -611,6 +731,15 @@ namespace op {
         hpdf << TreeManip::nexusTranslateCommand();
         for (unsigned i = 0; i < ntrees; i++) {
             string newick = getNewick(i);
+#if defined(ALWAYS_ROOTED)
+            if (_log_posteriors.empty()) {
+                hpdf << "  tree t" << (i+1) << " = [&R] " << newick << ";\n";
+            }
+            else {
+                double logp = _log_posteriors[i];
+                hpdf << "  tree t" << (i+1) << " = [&R] [log-posterior = " << setprecision(9) << logp << "] " << newick << ";\n";
+            }
+#else
             if (_log_posteriors.empty()) {
                 hpdf << "  tree t" << (i+1) << " = [&" << (_is_rooted[i] ? "R" : "U") << "] " << newick << ";\n";
             }
@@ -618,6 +747,7 @@ namespace op {
                 double logp = _log_posteriors[i];
                 hpdf << "  tree t" << (i+1) << " = [&" << (_is_rooted[i] ? "R" : "U") << "] [log-posterior = " << setprecision(9) << logp << "] " << newick << ";\n";
             }
+#endif
         }
         hpdf << "end;\n";
         hpdf.close();

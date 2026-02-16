@@ -67,7 +67,8 @@ unsigned     OP::_major_version       = 1;
 //string     OP::_minor_version      = "8.3";  // added stepwise option
 //string     OP::_minor_version      = "9.0";  // added ability to read BPP tree files
 //string     OP::_minor_version      = "9.1";  // fixed bug in BPP file type determination
-string     OP::_minor_version      = "9.2";  // fixed bug in TreeManip::renumberNewick when there are nexus comments in a newick tree description
+//string     OP::_minor_version      = "9.2";  // fixed bug in TreeManip::renumberNewick when there are nexus comments in a newick tree description
+string     OP::_minor_version      = "9.3";  // fixed bug in OP::opCalcLeafContribution for unrooted trees by simply treating all trees as rooted
 
 bool         OP::_silent              = false; // set to true only for unit tests
 const double Node::_smallest_edge_length = 1.0e-12;
