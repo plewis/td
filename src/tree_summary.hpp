@@ -487,6 +487,7 @@ namespace op {
                             // store the newick tree description
                             string newick = d.GetNewick();;
                             if (!taxon_index_map.empty()) {
+                                TreeManip::stripComments(newick);
                                 newick = TreeManip::renumberNewick(newick, taxon_index_map);
                             }
 

@@ -51,6 +51,7 @@ namespace op {
 
         static string               nexusTranslateCommand();    // creates translate command from _taxon_names
         static string               renumberNewick(const string & newick, map<unsigned, unsigned> taxon_index_map);
+        static void                 stripComments(string & newick);
 
         static vector<string>           _taxon_names; // all trees stored by any TreeManip use this taxon ordering
         static map<string, unsigned>    _taxon_map;   // maps taxon name found in the treefile to the index into _taxon_names
@@ -1378,6 +1379,10 @@ namespace op {
         return translate_command;
     }
 
+    inline void TreeManip::stripComments(string & newick) {
+        newick = regex_replace(newick, regex("\\[.+?\\]"), "");
+    }
+
     inline string TreeManip::renumberNewick(const string & newick, map<unsigned, unsigned> taxon_index_map) {
         // Returns a newick tree description in which the taxa (assumed to be numbers) have been
         // translated by taxon_index_map. For example, assume taxon number in newick equals 3, which
@@ -1385,9 +1390,12 @@ namespace op {
         // will have 0 + 1 = 1 where the original newick had 3.
         string renumbered_newick;
 
+        // The number of replacements should equal the size of taxon_index_map
+        unsigned num_replacements = 0;
+
         // Construct a regular expression pattern that identifies taxon numbers in newick descriptions
         regex taxon_regex(R"([(,]\s*(\d+)\s*(?=[,):]))");
-        //                      [(,] <-- leaves always follow a left parentheses or a comma
+        //                      [(,] <-- leaves always follow a left parenthesis or a comma
         //                          \s* <-- possibly some whitespace before taxon name
         //                             (\d+) <-- a number
         //                                  \s* <-- possibly some whitespace after name
@@ -1405,14 +1413,14 @@ namespace op {
         string::size_type prev_pos = 0;
         string::size_type curr_pos = 0;
 
-        // Search through the part of newick from ssearch_start onward, stopping if there is a match
+        // Search through the part of newick from search_start onward, stopping if there is a match
         while (std::regex_search(search_start, newick.cend(), taxon_match, taxon_regex)) {
             // A match was found, so extract the taxon number
             unsigned taxon_number = 0;
             try {
                 taxon_number = stod(taxon_match[1]);
             } catch (const std::invalid_argument &) {
-                throw Xop(format("Could not match taxon number at position %d in newick tree description \"%s\"") % taxon_match.position(1) % newick);
+                throw Xop(format("In TreeManip::renumberNewick, could not match taxon number at position %d in newick tree description \"%s\"") % taxon_match.position(1) % newick);
             }
 
             // Taxon number should follow nexus 1-offset standard
@@ -1449,6 +1457,8 @@ namespace op {
             // beginning and end of the suffix. We want to begin again at the start of the
             // suffix, hence we let search_start equal suffix().first.
             search_start = taxon_match.suffix().first;
+
+            num_replacements++;
         }
 
         // Add the part of newick that is beyond the last match
@@ -1456,6 +1466,10 @@ namespace op {
         // from prev_pos to the end of the string
         string final_text = newick.substr(prev_pos);
         renumbered_newick += final_text;
+
+        if (num_replacements != taxon_index_map.size()) {
+            throw Xop(format("In TreeManip::renumberNewick, number of replacements (%d) does not equal size of taxon_index_map (%d)") % num_replacements % taxon_index_map.size());
+        }
 
         return renumbered_newick;
     }
