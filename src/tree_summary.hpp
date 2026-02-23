@@ -271,7 +271,7 @@ namespace op {
 
         // Go through buffer line by line
         unsigned t = 0; // indexes all trees in the file, even if they are not saved
-        unsigned nkept = 0; // keeps track of the number of trees from the file that are saved
+        int nkept = 0; // keeps track of the number of trees from the file that are saved
         string newick;
         while (getline(_buffer, newick)) {
             // Determine whether this line holds a tree that should be saved
@@ -369,7 +369,7 @@ namespace op {
 
         // Go through buffer line by line
         unsigned t = 0; // indexes all trees in the file, even if they are not saved
-        unsigned nkept = 0; // keeps track of the number of trees from the file that are saved
+        int nkept = 0; // keeps track of the number of trees from the file that are saved
         while (getline(buffer, line)) {
             // Determine whether this line holds a tree that should be saved
             bool do_sample = (t >= skip);
@@ -464,7 +464,7 @@ namespace op {
             throw;
         }
 
-        unsigned nkept = 0;
+        int nkept = 0;
         auto numTaxaBlocks = static_cast<int>(nexusReader.GetNumTaxaBlocks());
         for (int i = 0; i < numTaxaBlocks; ++i) {
             NxsTaxaBlock * taxaBlock = nexusReader.GetTaxaBlock(i);

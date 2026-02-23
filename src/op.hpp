@@ -190,8 +190,8 @@ namespace op {
         _precision(9),
         _nsteps(0),
         _step_mu(-0.05),
-        _step_sigma(0.05),
         _random_number_seed(1),
+        _step_sigma(0.05),
         _ref_tree_filename(""),
         _refskip(0),
 #if defined(ALWAYS_ROOTED)
@@ -2574,7 +2574,7 @@ namespace op {
             unsigned tree_index = get<1>(t);
             bool is_rooted      = get<2>(t);
             string newick    = get<3>(t);
-            outf << "  tree t" << tree_index << " [bhvdist = " << setprecision(9) << dist << "] = " << (is_rooted ? "[&R] " : "[&U] ") << newick << ";\n";
+            outf << "  tree t" << tree_index << " [bhvdist = " << setprecision(ndecimals) << dist << "] = " << (is_rooted ? "[&R] " : "[&U] ") << newick << ";\n";
         }
         outf << "end;" << endl;
         outf.close();
@@ -2649,13 +2649,13 @@ namespace op {
         double empirical_hpd_cutoff = numeric_limits<double>::lowest();
         double min_log_posterior = numeric_limits<double>::max();;
         double max_log_posterior = numeric_limits<double>::lowest();;
-        bool log_posteriors_available = findEmpiricalHPDwaterline(empirical_hpd_cutoff, min_log_posterior, max_log_posterior);
+        //bool log_posteriors_available = findEmpiricalHPDwaterline(empirical_hpd_cutoff, min_log_posterior, max_log_posterior);
 
         // Compute the variance
         double variance = 0.0;
         vector<double> bhvdists(ntrees, 0.0);
-        double empirical_hpd_lower = numeric_limits<double>::max(); // smallest distance inside HPD credible set of trees
-        double empirical_hpd_upper = 0.0;                           // largest distance inside HPD credible set of trees
+        //double empirical_hpd_lower = numeric_limits<double>::max(); // smallest distance inside HPD credible set of trees
+        //double empirical_hpd_upper = 0.0;                           // largest distance inside HPD credible set of trees
         double smallest_distance = numeric_limits<double>::max();
         double largest_distance = 0.0;
         auto log_posteriors = _tree_summary->getLogPosteriors();
