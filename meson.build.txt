@@ -1,0 +1,33 @@
+# Before using,
+#   module load ninja/1.11.1
+#   module load boost/1.85.0
+#   module load gcc/15.1.0
+
+project('treedist', 'cpp',
+	default_options : ['cpp_std=c++17','buildtype=release','prefix=//home/pol02003/op-install-dir'],
+	version : '1.0')
+cpp = meson.get_compiler('cpp')
+
+boost_lib  = '/home/pol02003/boost_1_85_0/stage/lib'
+boost_incl = '/home/pol02003/boost_1_85_0'
+ncl_lib    = '/home/pol02003/lib/static'
+ncl_incl   = '/home/pol02003/include'
+
+# These lines specify the locations of the NCL, Boost, and BeagleLib compiled libraries
+lib_system = cpp.find_library('boost_system', dirs: [boost_lib], required: true)
+lib_filesystem = cpp.find_library('boost_filesystem', dirs: [boost_lib], required: true)
+lib_program_options = cpp.find_library('boost_program_options', dirs: [boost_lib], required: true)
+lib_ncl = cpp.find_library('ncl', dirs: [ncl_lib], required: true)
+
+# These lines specify the locations of header files for the NCL, Boost, BeagleLib, and Eigen library
+incl_ncl = include_directories(ncl_incl)
+incl_boost = include_directories(boost_incl)
+
+# This line creates the executable file
+executable('op', 'main.cpp', install: true, install_dir: '.', dependencies: [lib_ncl,lib_program_options,lib_system,lib_filesystem], include_directories: [incl_ncl,incl_boost])
+
+# These lines just copy files to the install directory
+#install_data('treedist.conf', install_dir: '.')
+#install_data('rbcl10.nex', install_dir: '.')
+#install_data('rbcl10.tre', install_dir: '.')
+#sinstall_data('s.sh', install_dir: '.')
