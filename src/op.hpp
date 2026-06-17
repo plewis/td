@@ -67,8 +67,8 @@ namespace op {
         double calcKFDistance(unsigned ref_index, unsigned test_index) const;
         unsigned chooseRandomTree(TreeManip & tm, Lot & lot) const;
         void displaceTreeAlongGeodesic(TreeManip & start_tree, TreeManip & end_tree, double displacement) const;
-        bool frechetCloseEnough(vector<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const;
-        unsigned computeFrechetMean(TreeManip & mean_tree) const ;
+        pair<bool,double> frechetCloseEnough(list<TreeManip> & mu, double epsilon) const;
+        pair<unsigned,double> computeFrechetMean(TreeManip & mean_tree) const ;
         static double opCalcTreeIDLength(
             const Split::treeid_t & splits);
         double opCalcLeafContribution(
@@ -1840,7 +1840,7 @@ namespace op {
         vector<Split::treeid_pair_t> ABpairs;
         vector<Split::split_pair_t> commonPairs;
         vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
-        calcBHVDistance(start_tree, end_tree, in_pairs, ABpairs, commonPairs);
+        double dtmp = calcBHVDistance(start_tree, end_tree, in_pairs, ABpairs, commonPairs);
 
         // Support A = (A1, A2, ..., Ak) and B = (B1, B2, ..., Bk)
         // Path has i-1,2,...,k "legs"
@@ -1967,16 +1967,79 @@ namespace op {
             }
         }
     }
+    // inline pair<bool,double> OP::frechetCloseEnough(list<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const {
+    //     // Compute pairwise distances between trees in mu with index >= lower and index < upper and return
+    //     // true iff all pairwise distances are less than epsilon
+    //     bool is_close_enough = true;
+    //     double largest = 0.0;
+    //     vector<Split::treeid_pair_t> ABpairs;
+    //     vector<Split::split_pair_t> commonPairs;
+    //     vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
+    //     assert(lower < upper);
+    //     assert (upper <= mu.size());
+    //     if (_nthreads > 1) {
+    //         // Assign each pair to a different thread until all are done
+    //         unsigned npairs = _frechet_n*(_frechet_n - 1)/2;
+    //         vector<thread> threads;
+    //         vector<double> bhv_distances(npairs, 0.0);
+    //         for (unsigned i = 0; i < _nthreads; i++) {
+    //             unsigned start_pair = _thread_sched[i].first;
+    //             unsigned end_pair = _thread_sched[i].second;
+    //             threads.emplace_back(thread(&OP::calcBHVDistanceForPairs,
+    //                 this,
+    //                 start_pair,
+    //                 end_pair,
+    //                 std::ref(mu),
+    //                 std::ref(bhv_distances),
+    //                 std::ref(in_pairs),
+    //                 std::ref(ABpairs),
+    //                 std::ref(commonPairs))
+    //             );
+    //         }
+    //
+    //         // The join function causes this loop to pause until the ith thread finishes
+    //         for (unsigned i = 0; i < threads.size(); i++) {
+    //             threads[i].join();
+    //         }
+    //
+    //         // Find largest bhv distance
+    //         largest = *max_element(bhv_distances.begin(), bhv_distances.end());
+    //         if (largest > epsilon) {
+    //             is_close_enough = false;
+    //         }
+    //     }
+    //     else {
+    //         // Single thread case
+    //         // first pair tried is mu[lower] vs. mu[upper-1], which should be the most distant pair
+    //         // increasing the chances of breaking the loop early if possible
+    //         for (unsigned i = lower; i < upper - 1; ++i) {
+    //             for (unsigned j = upper - 1; j > i; --j) {
+    //                 in_pairs.clear();
+    //                 double bhvdist = calcBHVDistance(mu[i-1], mu[j-1], in_pairs, ABpairs, commonPairs);
+    //                 if (bhvdist > largest)
+    //                     largest = bhvdist;
+    //                 if (largest > epsilon) {
+    //                     is_close_enough = false;
+    //                     break;
+    //                 }
+    //             }
+    //             if (!is_close_enough)
+    //                 break;
+    //         }
+    //     }
+    //     return make_pair(is_close_enough, largest);
+    // }
 
-    inline bool OP::frechetCloseEnough(vector<TreeManip> & mu, unsigned lower, unsigned upper, double epsilon) const {
-        // Compute pairwise distances between trees in mu with index >= lower and index < upper and return
+    inline pair<bool,double> OP::frechetCloseEnough(list<TreeManip> & mu, double epsilon) const {
+        // Compute pairwise distances between trees in mu and return
         // true iff all pairwise distances are less than epsilon
+        assert(mu.size() == _frechet_n); // Should not be in this function if this is not true
         bool is_close_enough = true;
+        double largest = 0.0;
         vector<Split::treeid_pair_t> ABpairs;
         vector<Split::split_pair_t> commonPairs;
         vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
-        assert(lower < upper);
-        assert (upper <= mu.size());
+#if 0
         if (_nthreads > 1) {
             // Assign each pair to a different thread until all are done
             unsigned npairs = _frechet_n*(_frechet_n - 1)/2;
@@ -2003,19 +2066,46 @@ namespace op {
             }
 
             // Find largest bhv distance
-            double largest = *max_element(bhv_distances.begin(), bhv_distances.end());
+            largest = *max_element(bhv_distances.begin(), bhv_distances.end());
             if (largest > epsilon) {
                 is_close_enough = false;
             }
         }
         else {
-            // first pair tried is mu[lower] vs. mu[upper-1], which should be the most distant pair
+#endif
+
+            // Single thread case
+            // first pair tried is mu.front() vs. mu.back(), which should be the most distant pair
             // increasing the chances of breaking the loop early if possible
-            for (unsigned i = lower; i < upper - 1; ++i) {
-                for (unsigned j = upper - 1; j > i; --j) {
+            // If _frechet_n = 5, here is the order in which i and j are assigned
+            // i   j
+            // -----
+            // 0   4
+            // 0   3
+            // 0   2
+            // 0   1
+            // 1   4
+            // 1   3
+            // 1   2
+            // 2   4
+            // 2   3
+            // 3   4
+            for (unsigned i = 0; i < _frechet_n - 1; ++i) {
+                for (unsigned j = _frechet_n - 1; j > i; --j) {
                     in_pairs.clear();
-                    double bhvdist = calcBHVDistance(mu[i-1], mu[j-1], in_pairs, ABpairs, commonPairs);
-                    if (bhvdist > epsilon) {
+
+                    // Get an iterator for the ith element of mu
+                    auto iter_i = mu.begin();
+                    std::advance(iter_i, i);
+
+                    // Get an iterator for the jth element of mu
+                    auto iter_j = mu.begin();
+                    std::advance(iter_j, j);
+
+                    double bhvdist = calcBHVDistance(*iter_i, *iter_j, in_pairs, ABpairs, commonPairs);
+                    if (bhvdist > largest)
+                        largest = bhvdist;
+                    if (largest > epsilon) {
                         is_close_enough = false;
                         break;
                     }
@@ -2023,44 +2113,62 @@ namespace op {
                 if (!is_close_enough)
                     break;
             }
+#if 0
         }
-        return is_close_enough;
+#endif
+        return make_pair(is_close_enough, largest);
     }
 
-    inline unsigned OP::computeFrechetMean(TreeManip & mean_tree) const {
+    inline pair<unsigned,double> OP::computeFrechetMean(TreeManip & mean_tree) const {
         // Returns the number of iterations required to compute the Frechet mean tree
         double   epsilon = _frechet_epsilon; // successive mean estimates must be at least this close to stop iterating
         unsigned N = _frechet_n;   // number of previous mean estimates that must be as close as epsilon
         unsigned K = _frechet_k; // maximum number of iterations
         unsigned k = 1;   // keeps track of iterations
-        vector<TreeManip> mu;
-        //mu.reserve(K);// the trail of estimated mean trees (always has length k)
+        list<TreeManip> mu;
         Lot lot;
         lot.setSeed(_random_number_seed);
         mu.emplace_back();
-        //@ unsigned prev_index = chooseRandomTree(mu[k-1], lot);
-        chooseRandomTree(mu[k-1], lot);
+        //chooseRandomTree(mu[k-1], lot);
+        chooseRandomTree(mu.back(), lot);
         bool done = false;
+        double largest = 0.0;
         //@ unsigned curr_index = 0;
         while (!done) {
             ++k;
+            TreeManip & penultimate = mu.back();
             mu.emplace_back();
-            assert(mu.size() == k);
+            //assert(mu.size() == k);
+            TreeManip & ultimate = mu.back();
 
             //@ curr_index = chooseRandomTree(mu[k-1], lot);
-            chooseRandomTree(mu[k-1], lot);
+            //chooseRandomTree(mu[k-1], lot);
+            chooseRandomTree(ultimate, lot);
 
-            displaceTreeAlongGeodesic(mu[k-1], mu[k-2], 1.0*k/(k+1));
+            //displaceTreeAlongGeodesic(mu[k-1], mu[k-2], 1.0*k/(k+1));
+            displaceTreeAlongGeodesic(ultimate, penultimate, 1.0*k/(k+1));
+
             //@ prev_index = curr_index;
             if (k >= K) {
                 done = true;
+                //pair<bool,double> p = frechetCloseEnough(mu, k-N, k, epsilon);
+                pair<bool,double> p = frechetCloseEnough(mu, epsilon);
+                largest = p.second;
             }
-            if (k > N) {
-                done = frechetCloseEnough(mu, k-N, k, epsilon);
+            else if (k > N) {
+                //pair<bool,double> p = frechetCloseEnough(mu, k-N, k, epsilon);
+                pair<bool,double> p = frechetCloseEnough(mu, epsilon);
+                done = p.first;
+                largest = p.second;
+
+                // Once mu has reached size N, keep it that size
+                mu.pop_front();
+                assert(mu.size() == N);
             }
         }
-        mean_tree.setTree(mu[k-1].getTree());
-        return k;
+        //mean_tree.setTree(mu[k-1].getTree());
+        mean_tree.setTree(mu.back().getTree());
+        return make_pair(k,largest);
     }
 
 #if defined(TESTKDE)
@@ -2643,7 +2751,15 @@ namespace op {
             cout << "Computing Frechet mean tree..." << endl;
 
         // Compute the mean tree
-        unsigned number_of_iterations = computeFrechetMean(mean_tree);
+        pair<unsigned,double> p = computeFrechetMean(mean_tree);
+        unsigned number_of_iterations = p.first;
+        double largest_of_n = p.second;
+
+        if (_noisy)
+            cout << "Frechet mean required " << number_of_iterations << " iterations and had precision " << setprecision(9) << largest_of_n << endl;
+        if (number_of_iterations >= _frechet_k) {
+            cout << "Warning: frechet mean required maximum number of iterations (" << number_of_iterations << ") and had precision " << setprecision(9) << largest_of_n << " > epsilon (" << setprecision(9) << _frechet_epsilon << ")" << endl;
+        }
 
         // log_posteriors will only be available if treefile was in RevBayes format
         double empirical_hpd_cutoff = numeric_limits<double>::lowest();
@@ -2675,6 +2791,7 @@ namespace op {
             vector<Split::split_pair_t> commonPairs;
             vector<pair<Split::treeid_t, Split::treeid_t> > in_pairs;
             double bhvdist = calcBHVDistance(mean_tree, tm, in_pairs, ABpairs, commonPairs);
+
             variance += bhvdist*bhvdist;
             bhvdists[i] = bhvdist;
             if (bhvdist < smallest_distance) {
@@ -2811,7 +2928,10 @@ namespace op {
         // Read tree file into _buffer
         _tree_summary->readFileIntoBuffer(_ref_tree_filename);
 
-        // Determine whether tree file is NEXUS, RevBayes, or BPP
+        //temporary!
+        cerr << "\n********** _ref_tree_filename = " << _ref_tree_filename << " **********" << endl;
+
+        // Determine whether tree file is NEXUS, RevBayes, BPP, or other
         TreeSummary::TreeFileType tree_file_type = _tree_summary->treeFileTypeFromBuffer();
 
         if (tree_file_type == TreeSummary::TreeFileType::NEXUS) {
@@ -2859,7 +2979,7 @@ namespace op {
                 1);
         }
         else {
-            throw Xop("treefile does not seem to be in Nexus, RevBayes, or BPP format");
+            throw Xop(format("reftree \"%s\" does not seem to be in Nexus, RevBayes, or BPP format") % _ref_tree_filename);
         }
 
         if (!_tree_summary->isRefTree()) {
@@ -2891,7 +3011,7 @@ namespace op {
             if (_hpd_radius) {
                 // Assume RevBayes tree file format because _hpd_radius requires log-posterior for each tree
                 if (tree_file_type != TreeSummary::TreeFileType::REVBAYES) {
-                    throw Xop("treefile does not seem to be in RevBayes format (required if hpdrad specified)");
+                    throw Xop(format("treefile \"%s\" does not seem to be in RevBayes format (required if hpdrad specified)") % fn);
                 }
 
                 ts.readRevBayesTreefile(fn,
@@ -2962,6 +3082,9 @@ namespace op {
                         _keep[which_treefile],
                         _subsample[which_treefile],
                         _subseed[which_treefile]);
+                }
+                else {
+                    throw Xop(format("treefile \"%s\" does not seem to be in Nexus, RevBayes, or BPP format") % fn);
                 }
 
                 unsigned ts_ntrees = ts.getNumTrees();

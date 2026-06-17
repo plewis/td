@@ -196,6 +196,10 @@ namespace op {
         // Copy the first 50 characters of s
         string first_fifty = s.substr(0, 50);
 
+        //temporary!
+        cerr << "\n********** length of s = " << s.size() << " **********" << endl;
+        cerr << "\n********** first_fifty = " << first_fifty << " **********" << endl;
+
         // If the file is in NEXUS format, the first 50 characters should start with "#nexus" (case insensitive)
         regex nexus_re(R"(#[Nn][Ee][Xx][Uu][Ss][\s\S]+)");
         if (regex_match(first_fifty, nexus_re)) {
@@ -236,8 +240,21 @@ namespace op {
     inline bool TreeSummary::readFileIntoBuffer(const string & filename) {
         // Read entire tree file into a buffer
         ifstream inf(filename.c_str());
+        if (!static_cast<bool>(inf)) {
+            throw Xop(format("File \"%s\" does not exist.") % filename);
+        }
+        else {
+            //temporary!
+            cerr << "File \"" << filename.c_str() << "\" exists." << endl;
+        }
         _buffer.clear();
         _buffer << inf.rdbuf();
+        inf.close();
+
+        // //temporary!
+        // string result = _buffer.str();
+        // std::cerr << "Resulting string: " << result << endl;
+
         return true;
     }
 
