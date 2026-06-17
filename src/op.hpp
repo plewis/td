@@ -2151,6 +2151,12 @@ namespace op {
             //displaceTreeAlongGeodesic(mu[k-1], mu[k-2], 1.0*k/(k+1));
             displaceTreeAlongGeodesic(ultimate, penultimate, 1.0*k/(k+1));
 
+            if (mu.size() > _frechet_n) {
+                // Once mu has reached size N, keep it that size
+                mu.pop_front();
+                assert(mu.size() == _frechet_n);
+            }
+
             //@ prev_index = curr_index;
             if (k >= K) {
                 done = true;
@@ -2159,10 +2165,6 @@ namespace op {
                 largest = p.second;
             }
             else if (k > N) {
-                // Once mu has reached size N, keep it that size
-                mu.pop_front();
-                assert(mu.size() == N);
-
                 //pair<bool,double> p = frechetCloseEnough(mu, k-N, k, epsilon);
                 pair<bool,double> p = frechetCloseEnough(mu, epsilon);
                 done = p.first;

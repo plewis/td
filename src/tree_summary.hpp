@@ -196,10 +196,6 @@ namespace op {
         // Copy the first 50 characters of s
         string first_fifty = s.substr(0, 50);
 
-        //temporary!
-        cerr << "\n********** length of s = " << s.size() << " **********" << endl;
-        cerr << "\n********** first_fifty = " << first_fifty << " **********" << endl;
-
         // If the file is in NEXUS format, the first 50 characters should start with "#nexus" (case insensitive)
         regex nexus_re(R"(#[Nn][Ee][Xx][Uu][Ss][\s\S]+)");
         if (regex_match(first_fifty, nexus_re)) {
