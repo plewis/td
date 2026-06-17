@@ -2033,6 +2033,9 @@ namespace op {
     inline pair<bool,double> OP::frechetCloseEnough(list<TreeManip> & mu, double epsilon) const {
         // Compute pairwise distances between trees in mu and return
         // true iff all pairwise distances are less than epsilon
+        if (mu.size() != _frechet_n) {
+            cerr << "mu.size() = " << mu.size() << " but _frechet_n = " << _frechet_n << endl;
+        }
         assert(mu.size() == _frechet_n); // Should not be in this function if this is not true
         bool is_close_enough = true;
         double largest = 0.0;
@@ -2156,14 +2159,14 @@ namespace op {
                 largest = p.second;
             }
             else if (k > N) {
+                // Once mu has reached size N, keep it that size
+                mu.pop_front();
+                assert(mu.size() == N);
+
                 //pair<bool,double> p = frechetCloseEnough(mu, k-N, k, epsilon);
                 pair<bool,double> p = frechetCloseEnough(mu, epsilon);
                 done = p.first;
                 largest = p.second;
-
-                // Once mu has reached size N, keep it that size
-                mu.pop_front();
-                assert(mu.size() == N);
             }
         }
         //mean_tree.setTree(mu[k-1].getTree());
